@@ -1,29 +1,105 @@
-from app.db import get_db
+from __future__ import annotations
+
+from datetime import datetime
+
+ORDER_STATUS_LABELS = {
+    'novo': 'Novo',
+    'preparando': 'Preparando',
+    'pronto': 'Pronto',
+    'entregue': 'Entregue',
+    'cancelado': 'Cancelado',
+}
+
+ACTIVE_ORDER_STATUSES = ('novo', 'preparando', 'pronto')
 
 
-def create_order(table_number, items):
-    db = get_db()
+def _format_created_at(value) -> str:
+    if not value:
+        return ''
 
-    total = 0
+    text = str(value)
 
-    for item in items:
-        total += item["quantity"] * item["price"]
+    for candidate in (text, text.replace(' ', 'T')):
+        try:
+            return datetime.fromisoformat(candidate).strftime('%d/%m/%Y %H:%M')
+        except ValueError:
+            continue
+
+    return text
+
+
+def _decorate_order(db, order):
+    items = db.execute(
+        '''
+        SELECT
+            oi.id,
+            oi.order_id,
+            oi.product_id,
+            COALESCE(NULLIF(oi.product_name_snapshot, ''), p.name, 'Item') AS name,
+            oi.quantity,
+            oi.unit_price
+        FROM order_items oi
+        LEFT JOIN products p ON p.id = oi.product_id
+        WHERE oi.order_id = ?
+        ORDER BY oi.id ASC
+        ''',
+        (order['id'],),
+    ).fetchall()
+
+    return {
+        'order': order,
+        'items': items,
+        'status_label': ORDER_STATUS_LABELS.get(order['status'], order['status']),
+        'created_at_display': _format_created_at(order['created_at']),
+    }
+
+
+def create_order_from_cart(
+    db,
+    table_number: str,
+    cart: list[dict],
+    customer_name: str,
+    notes: str | None = None
+) -> int:
+    now = datetime.utcnow().isoformat(timespec='seconds')
 
     cursor = db.execute(
-        """
-        INSERT INTO orders (table_number, total, status)
-        VALUES (?, ?, ?)
-        """,
-        (table_number, total, "pending"),
+        '''
+        INSERT INTO orders (
+            table_number,
+            customer_name,
+            status,
+            notes,
+            total_amount,
+            created_at,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''',
+        (
+            str(table_number),
+            customer_name,
+            'novo',
+            notes,
+            0,
+            now,
+            now,
+        ),
     )
 
     order_id = cursor.lastrowid
 
-    for item in items:
+    total = 0.0
+
+    for item in cart:
+        quantity = int(item['quantity'])
+        unit_price = float(item['price'])
+
+        total += quantity * unit_price
+
         db.execute(
-            """
-            INSERT INTO order_items
-            (
+            '''
+            INSERT INTO order_items (
                 order_id,
                 product_id,
                 product_name_snapshot,
@@ -31,121 +107,77 @@ def create_order(table_number, items):
                 unit_price
             )
             VALUES (?, ?, ?, ?, ?)
-            """,
+            ''',
             (
                 order_id,
-                item["id"],
-                item["name"],
-                item["quantity"],
-                item["price"],
+                item['product_id'],
+                item['name'],
+                quantity,
+                unit_price,
             ),
         )
 
-    db.commit()
+    db.execute(
+        '''
+        UPDATE orders
+        SET total_amount = ?
+        WHERE id = ?
+        ''',
+        (
+            round(total, 2),
+            order_id,
+        ),
+    )
 
+    db.commit()
     return order_id
 
 
-def get_orders():
-    db = get_db()
+def list_orders_for_table(db, table_number: str):
+    placeholders = ', '.join('?' for _ in ACTIVE_ORDER_STATUSES)
 
     orders = db.execute(
-        """
+        f'''
         SELECT *
         FROM orders
-        ORDER BY created_at DESC
-        """
+        WHERE table_number = ?
+          AND status IN ({placeholders})
+        ORDER BY id DESC
+        ''',
+        (str(table_number), *ACTIVE_ORDER_STATUSES),
     ).fetchall()
 
-    decorated_orders = []
-
-    for order in orders:
-        decorated_orders.append(_decorate_order(order))
-
-    return decorated_orders
+    return [_decorate_order(db, order) for order in orders]
 
 
-def get_pending_orders():
-    db = get_db()
-
+def list_orders_for_kitchen(db):
     orders = db.execute(
-        """
+        '''
         SELECT *
         FROM orders
-        WHERE status != 'done'
-        ORDER BY created_at ASC
-        """
+        ORDER BY id DESC
+        '''
     ).fetchall()
 
-    decorated_orders = []
-
-    for order in orders:
-        decorated_orders.append(_decorate_order(order))
-
-    return decorated_orders
+    return [_decorate_order(db, order) for order in orders]
 
 
-def update_order_status(order_id, status):
-    db = get_db()
-
+def update_order_status(db, order_id: int, status: str):
     db.execute(
-        """
+        '''
         UPDATE orders
         SET status = ?
         WHERE id = ?
-        """,
-        (status, order_id),
+        ''',
+        (
+            status,
+            order_id,
+        ),
     )
-
     db.commit()
 
 
-def delete_order(order_id):
-    db = get_db()
-
-    db.execute(
-        "DELETE FROM order_items WHERE order_id = ?",
-        (order_id,),
-    )
-
-    db.execute(
-        "DELETE FROM orders WHERE id = ?",
-        (order_id,),
-    )
-
+def delete_all_orders(db):
+    db.execute('DELETE FROM order_items')
+    db.execute('DELETE FROM orders')
     db.commit()
-
-
-def _decorate_order(order):
-    db = get_db()
-
-    items = db.execute(
-        """
-        SELECT
-            oi.id,
-            oi.order_id,
-            oi.product_id,
-
-            COALESCE(
-                NULLIF(oi.product_name_snapshot, ''),
-                p.name,
-                'Item'
-            ) AS name,
-
-            oi.quantity,
-            oi.unit_price
-
-        FROM order_items oi
-
-        LEFT JOIN products p
-            ON p.id = oi.product_id
-
-        WHERE oi.order_id = ?
-        """,
-        (order["id"],),
-    ).fetchall()
-
-    order_dict = dict(order)
-    order_dict["items"] = [dict(item) for item in items]
-
-    return order_dict
