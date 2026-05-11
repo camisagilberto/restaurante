@@ -1,102 +1,29 @@
-from __future__ import annotations
-
-from datetime import datetime
+from app.db import get_db
 
 
-ORDER_STATUS_LABELS = {
-    'novo': 'Novo',
-    'preparando': 'Preparando',
-    'pronto': 'Pronto',
-    'entregue': 'Entregue',
-    'cancelado': 'Cancelado',
-}
+def create_order(table_number, items):
+    db = get_db()
 
-ACTIVE_ORDER_STATUSES = ('novo', 'preparando', 'pronto')
+    total = 0
 
-
-def _format_created_at(value) -> str:
-    if not value:
-        return ''
-
-    text = str(value)
-
-    for candidate in (text, text.replace(' ', 'T')):
-        try:
-            return datetime.fromisoformat(candidate).strftime('%d/%m/%Y %H:%M')
-        except ValueError:
-            continue
-
-    return text
-
-
-def _decorate_order(db, order):
-    items = db.execute(
-        '''
-        SELECT *
-        FROM order_items
-        WHERE order_id = ?
-        ''',
-        (order['id'],),
-    ).fetchall()
-
-    return {
-        'order': order,
-        'items': items,
-        'status_label': ORDER_STATUS_LABELS.get(
-            order['status'],
-            order['status']
-        ),
-        'created_at_display': _format_created_at(order['created_at']),
-    }
-
-
-def create_order_from_cart(
-    db,
-    table_number: str,
-    cart: list[dict],
-    customer_name: str,
-    notes: str | None = None
-) -> int:
-
-    now = datetime.utcnow().isoformat()
+    for item in items:
+        total += item["quantity"] * item["price"]
 
     cursor = db.execute(
-        '''
-        INSERT INTO orders (
-            table_number,
-            customer_name,
-            status,
-            notes,
-            total_amount,
-            created_at,
-            updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''',
-        (
-            str(table_number),
-            customer_name,
-            'novo',
-            notes,
-            0,
-            now,
-            now,
-        ),
+        """
+        INSERT INTO orders (table_number, total, status)
+        VALUES (?, ?, ?)
+        """,
+        (table_number, total, "pending"),
     )
 
     order_id = cursor.lastrowid
 
-    total = 0
-
-    for item in cart:
-        quantity = int(item['quantity'])
-        unit_price = float(item['price'])
-
-        total += quantity * unit_price
-
+    for item in items:
         db.execute(
-            '''
-            INSERT INTO order_items (
+            """
+            INSERT INTO order_items
+            (
                 order_id,
                 product_id,
                 product_name_snapshot,
@@ -104,82 +31,121 @@ def create_order_from_cart(
                 unit_price
             )
             VALUES (?, ?, ?, ?, ?)
-            ''',
+            """,
             (
                 order_id,
-                item['product_id'],
-                item['name'],
-                quantity,
-                unit_price,
+                item["id"],
+                item["name"],
+                item["quantity"],
+                item["price"],
             ),
         )
-
-    db.execute(
-        '''
-        UPDATE orders
-        SET total_amount = ?
-        WHERE id = ?
-        ''',
-        (
-            round(total, 2),
-            order_id,
-        ),
-    )
 
     db.commit()
 
     return order_id
 
 
-def list_orders_for_table(db, table_number: str):
-    placeholders = ', '.join('?' for _ in ACTIVE_ORDER_STATUSES)
+def get_orders():
+    db = get_db()
 
     orders = db.execute(
-        f'''
+        """
         SELECT *
         FROM orders
-        WHERE table_number = ?
-          AND status IN ({placeholders})
-        ORDER BY id DESC
-        ''',
-        (str(table_number), *ACTIVE_ORDER_STATUSES),
+        ORDER BY created_at DESC
+        """
     ).fetchall()
 
-    return [_decorate_order(db, order) for order in orders]
+    decorated_orders = []
+
+    for order in orders:
+        decorated_orders.append(_decorate_order(order))
+
+    return decorated_orders
 
 
-def list_orders_for_kitchen(db):
+def get_pending_orders():
+    db = get_db()
+
     orders = db.execute(
-        '''
+        """
         SELECT *
         FROM orders
-        ORDER BY id DESC
-        '''
+        WHERE status != 'done'
+        ORDER BY created_at ASC
+        """
     ).fetchall()
 
-    return [_decorate_order(db, order) for order in orders]
+    decorated_orders = []
+
+    for order in orders:
+        decorated_orders.append(_decorate_order(order))
+
+    return decorated_orders
 
 
-def update_order_status(db, order_id: int, status: str):
+def update_order_status(order_id, status):
+    db = get_db()
 
     db.execute(
-        '''
+        """
         UPDATE orders
         SET status = ?
         WHERE id = ?
-        ''',
-        (
-            status,
-            order_id,
-        ),
+        """,
+        (status, order_id),
     )
 
     db.commit()
 
 
-def delete_all_orders(db):
+def delete_order(order_id):
+    db = get_db()
 
-    db.execute('DELETE FROM order_items')
-    db.execute('DELETE FROM orders')
+    db.execute(
+        "DELETE FROM order_items WHERE order_id = ?",
+        (order_id,),
+    )
+
+    db.execute(
+        "DELETE FROM orders WHERE id = ?",
+        (order_id,),
+    )
 
     db.commit()
+
+
+def _decorate_order(order):
+    db = get_db()
+
+    items = db.execute(
+        """
+        SELECT
+            oi.id,
+            oi.order_id,
+            oi.product_id,
+
+            COALESCE(
+                NULLIF(oi.product_name_snapshot, ''),
+                p.name,
+                'Item'
+            ) AS name,
+
+            oi.quantity,
+            oi.unit_price
+
+        FROM order_items oi
+
+        LEFT JOIN products p
+            ON p.id = oi.product_id
+
+        WHERE oi.order_id = ?
+        """,
+        (order["id"],),
+    ).fetchall()
+
+    order_dict = dict(order)
+    order_dict["items"] = [dict(item) for item in items]
+
+    return order_dict
