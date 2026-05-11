@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QRTotem</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+
+    <style>
+        .landing {
+            min-height: 100vh;
+            background: #fff;
+        }
+
+        .hero {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 60px;
+            padding: 60px 20px;
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        .hero-text {
+            flex: 1;
+        }
+
+        .hero-text h1 {
+            font-size: 64px;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            font-weight: 800;
+        }
+
+        .hero-text h1 span {
+            color: #ff6b00;
+        }
+
+        .hero-text p {
+            font-size: 22px;
+            color: #555;
+            margin-bottom: 32px;
+        }
+
+        .price-box {
+            border: 2px solid #eee;
+            border-radius: 20px;
+            padding: 24px;
+            width: fit-content;
+            margin-bottom: 30px;
+        }
+
+        .price-box strong {
+            font-size: 64px;
+            color: #ff6b00;
+        }
+
+        .cta-btn {
+            display: inline-block;
+            background: #ff6b00;
+            color: white;
+            text-decoration: none;
+            padding: 18px 40px;
+            border-radius: 14px;
+            font-size: 24px;
+            font-weight: bold;
+            transition: 0.2s;
+        }
+
+        .cta-btn:hover {
+            transform: scale(1.03);
+        }
+
+        .hero-image {
+            flex: 1;
+            text-align: center;
+        }
+
+        .hero-image img {
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .steps {
+            max-width: 1200px;
+            margin: auto;
+            padding: 40px 20px 80px;
+        }
+
+        .steps h2 {
+            text-align: center;
+            font-size: 42px;
+            margin-bottom: 40px;
+        }
+
+        .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+        }
+
+        .step-card {
+            border: 1px solid #eee;
+            border-radius: 20px;
+            padding: 24px;
+            text-align: center;
+            background: #fff;
+        }
+
+        .step-number {
+            width: 50px;
+            height: 50px;
+            background: #ff6b00;
+            color: white;
+            border-radius: 50%;
+            margin: auto auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 22px;
+        }
+
+        .step-card h3 {
+            margin-bottom: 12px;
+        }
+
+        .step-card p {
+            color: #666;
+        }
+
+        @media (max-width: 900px) {
+            .hero {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .hero-text h1 {
+                font-size: 42px;
+            }
+
+            .steps-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .price-box {
+                margin: auto auto 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="landing">
+
+    <section class="hero">
+
+        <div class="hero-text">
+            <h1>
+                Totem de autoatendimento
+                <span>no celular do seu cliente</span>
+            </h1>
+
+            <p>
+                Simples, rápido e sem complicação.
+                Mais agilidade no atendimento.
+            </p>
+
+            <div class="price-box">
+                <div>R$ <strong>149</strong>,00</div>
+                <div>por mês</div>
+            </div>
+
+            <a href="/mesa/1" class="cta-btn">
+                Começar agora
+            </a>
+        </div>
+
+        <div class="hero-image">
+            <img
+                src="https://images.unsplash.com/photo-1556740749-887f6717d7e4?q=80&w=1200"
+                alt="Totem"
+            >
+        </div>
+
+    </section>
+
+    <section class="steps">
+
+        <h2>Inicie essa operação em 5 minutos</h2>
+
+        <div class="steps-grid">
+
+            <div class="step-card">
+                <div class="step-number">1</div>
+                <h3>Crie seu usuário</h3>
+                <p>Conta pronta em segundos.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">2</div>
+                <h3>Cadastre o cardápio</h3>
+                <p>Importe seus produtos.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">3</div>
+                <h3>Configure o Pix</h3>
+                <p>Receba automaticamente.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">4</div>
+                <h3>Informe as mesas</h3>
+                <p>Organize seu salão.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">5</div>
+                <h3>Receba pedidos</h3>
+                <p>Pronto para vender.</p>
+            </div>
+
+        </div>
+
+    </section>
+
+</div>
+
+</body>
+</html>
