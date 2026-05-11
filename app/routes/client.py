@@ -25,9 +25,9 @@ def _current_table() -> str:
     return str(session.get('current_table') or '1')
 
 
-@client_bp.route('/')
+@client_bp.route("/")
 def home():
-    return redirect(url_for('client.table_menu', table_number=_current_table()))
+    return render_template("landing.html")
 
 
 @client_bp.route('/mesa/<table_number>')
