@@ -30,6 +30,8 @@
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     let isRefreshing = false;
+    let eventSource = null;
+    let reconnectTimer = null;
 
     function setLiveStatus(message) {
       if (liveStatus) {
@@ -60,7 +62,7 @@
 
         setLiveStatus('Atualização em tempo real ativa.');
       } catch (error) {
-        setLiveStatus('Falha ao atualizar. Tentando reconectar...');
+        setLiveStatus('Falha ao atualizar a cozinha. Tentando reconectar...');
       } finally {
         isRefreshing = false;
       }
@@ -105,6 +107,50 @@
       }
     }
 
+    function connectRealtime() {
+      if (!('EventSource' in window)) {
+        setLiveStatus('Seu navegador não suporta tempo real. Usando atualização silenciosa.');
+
+        window.setInterval(function () {
+          if (!document.hidden) {
+            refreshKitchenOrders();
+          }
+        }, 5000);
+
+        return;
+      }
+
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource('{{ url_for("kitchen.kitchen_events") }}');
+
+      eventSource.addEventListener('connected', function () {
+        setLiveStatus('Atualização em tempo real ativa.');
+      });
+
+      eventSource.addEventListener('orders-updated', function () {
+        refreshKitchenOrders();
+      });
+
+      eventSource.addEventListener('ping', function () {
+        setLiveStatus('Atualização em tempo real ativa.');
+      });
+
+      eventSource.onerror = function () {
+        setLiveStatus('Conexão perdida. Tentando reconectar automaticamente...');
+
+        if (reconnectTimer) {
+          window.clearTimeout(reconnectTimer);
+        }
+
+        reconnectTimer = window.setTimeout(function () {
+          connectRealtime();
+        }, 3000);
+      };
+    }
+
     document.addEventListener('submit', function (event) {
       const form = event.target.closest('form.status-actions');
 
@@ -114,33 +160,7 @@
       submitStatusForm(form);
     });
 
-    if ('EventSource' in window) {
-      const events = new EventSource('{{ url_for("kitchen.kitchen_events") }}');
-
-      events.addEventListener('connected', function () {
-        setLiveStatus('Atualização em tempo real ativa.');
-      });
-
-      events.addEventListener('orders-updated', function () {
-        refreshKitchenOrders();
-      });
-
-      events.addEventListener('ping', function () {
-        setLiveStatus('Atualização em tempo real ativa.');
-      });
-
-      events.onerror = function () {
-        setLiveStatus('Conexão perdida. Tentando reconectar automaticamente...');
-      };
-    } else {
-      setLiveStatus('Seu navegador não suporta tempo real. Usando atualização silenciosa.');
-
-      window.setInterval(function () {
-        if (!document.hidden) {
-          refreshKitchenOrders();
-        }
-      }, 5000);
-    }
+    connectRealtime();
   })();
 </script>
 {% endblock %}
