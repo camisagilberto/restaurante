@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-import json
-import time
 from functools import wraps
 
 from flask import (
     Blueprint,
-    Response,
     flash,
     jsonify,
+    make_response,
     redirect,
     render_template,
     request,
     session,
-    stream_with_context,
     url_for,
 )
 
@@ -41,6 +38,13 @@ def kitchen_required(view):
         return view(*args, **kwargs)
 
     return wrapped
+
+
+def _no_cache_response(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @kitchen_bp.route('/validar', methods=['POST'])
@@ -75,6 +79,7 @@ def orders():
         orders=detailed_orders,
         status_labels=ORDER_STATUS_LABELS,
         csrf=csrf_token(),
+        initial_signature=get_kitchen_orders_signature(db),
     )
 
 
@@ -84,54 +89,29 @@ def orders_partial():
     db = get_db()
     detailed_orders = list_orders_for_kitchen(db)
 
-    return render_template(
-        'kitchen/_orders_grid.html',
-        orders=detailed_orders,
-        status_labels=ORDER_STATUS_LABELS,
-        csrf=csrf_token(),
+    response = make_response(
+        render_template(
+            'kitchen/_orders_grid.html',
+            orders=detailed_orders,
+            status_labels=ORDER_STATUS_LABELS,
+            csrf=csrf_token(),
+        )
     )
 
+    return _no_cache_response(response)
 
-@kitchen_bp.route('/eventos')
+
+@kitchen_bp.route('/assinatura')
 @kitchen_required
-def kitchen_events():
-    @stream_with_context
-    def event_stream():
-        db = get_db()
-        last_signature = get_kitchen_orders_signature(db)
+def orders_signature():
+    db = get_db()
 
-        yield 'event: connected\n'
-        yield f'data: {json.dumps({"signature": last_signature})}\n\n'
-
-        while True:
-            time.sleep(1)
-
-            current_signature = get_kitchen_orders_signature(db)
-
-            if current_signature != last_signature:
-                last_signature = current_signature
-
-                payload = {
-                    'signature': current_signature,
-                    'updated': True,
-                }
-
-                yield 'event: orders-updated\n'
-                yield f'data: {json.dumps(payload)}\n\n'
-            else:
-                yield 'event: ping\n'
-                yield f'data: {json.dumps({"signature": current_signature})}\n\n'
-
-    response = Response(
-        event_stream(),
-        mimetype='text/event-stream',
+    response = jsonify(
+        success=True,
+        signature=get_kitchen_orders_signature(db),
     )
 
-    response.headers['Cache-Control'] = 'no-cache'
-    response.headers['X-Accel-Buffering'] = 'no'
-    response.headers['Connection'] = 'keep-alive'
-
-    return response
+    return _no_cache_response(response)
 
 
 @kitchen_bp.route('/<int:order_id>/status', methods=['POST'])
