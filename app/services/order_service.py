@@ -12,6 +12,7 @@ ORDER_STATUS_LABELS = {
 }
 
 ACTIVE_ORDER_STATUSES = ('novo', 'preparando', 'pronto')
+KITCHEN_ORDER_LIMIT = 100
 
 
 def _now_iso() -> str:
@@ -64,15 +65,19 @@ def _decorate_orders(db, orders):
     for item in item_rows:
         items_by_order[int(item['order_id'])].append(item)
 
-    return [
-        {
-            'order': order,
-            'items': items_by_order[int(order['id'])],
-            'status_label': ORDER_STATUS_LABELS.get(order['status'], order['status']),
-            'created_at_display': _format_created_at(order['created_at']),
-        }
-        for order in orders
-    ]
+    decorated = []
+
+    for order in orders:
+        decorated.append(
+            {
+                'order': order,
+                'items': items_by_order[int(order['id'])],
+                'status_label': ORDER_STATUS_LABELS.get(order['status'], order['status']),
+                'created_at_display': _format_created_at(order['created_at']),
+            }
+        )
+
+    return decorated
 
 
 def create_order_from_cart(
@@ -114,7 +119,7 @@ def create_order_from_cart(
             ),
         )
 
-        order_id = cursor.lastrowid
+        order_id = int(cursor.lastrowid)
 
         db.executemany(
             '''
@@ -140,7 +145,7 @@ def create_order_from_cart(
         )
 
         db.commit()
-        return int(order_id)
+        return order_id
 
     except Exception:
         db.rollback()
@@ -170,7 +175,9 @@ def list_orders_for_kitchen(db):
         SELECT *
         FROM orders
         ORDER BY id DESC
-        '''
+        LIMIT ?
+        ''',
+        (KITCHEN_ORDER_LIMIT,),
     ).fetchall()
 
     return _decorate_orders(db, orders)
