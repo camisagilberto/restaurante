@@ -37,6 +37,7 @@ def kitchen_required(view):
     def wrapped(*args, **kwargs):
         if not session.get('kitchen_authorized'):
             return redirect(url_for('client.home'))
+
         return view(*args, **kwargs)
 
     return wrapped
@@ -57,7 +58,10 @@ def validar_acesso():
 
     session['kitchen_authorized'] = True
 
-    return jsonify(success=True, redirect_url=url_for('kitchen.orders'))
+    return jsonify(
+        success=True,
+        redirect_url=url_for('kitchen.orders'),
+    )
 
 
 @kitchen_bp.route('/')
@@ -91,6 +95,7 @@ def orders_partial():
 @kitchen_bp.route('/eventos')
 @kitchen_required
 def kitchen_events():
+    @stream_with_context
     def event_stream():
         db = get_db()
         last_signature = get_kitchen_orders_signature(db)
@@ -118,12 +123,13 @@ def kitchen_events():
                 yield f'data: {json.dumps({"signature": current_signature})}\n\n'
 
     response = Response(
-        stream_with_context(event_stream()),
+        event_stream(),
         mimetype='text/event-stream',
     )
 
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['X-Accel-Buffering'] = 'no'
+    response.headers['Connection'] = 'keep-alive'
 
     return response
 
@@ -137,6 +143,7 @@ def update_status(order_id):
     try:
         update_order_status(db, order_id, status)
         message = 'Status atualizado.'
+
     except (ValidationError, ValueError) as exc:
         message = str(exc)
 
