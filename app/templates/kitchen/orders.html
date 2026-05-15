@@ -1,11 +1,12 @@
 {% extends 'base.html' %}
 {% block title %}Cozinha{% endblock %}
+
 {% block content %}
 <section class="hero-card">
   <div>
     <p class="eyebrow">Operação em tempo real</p>
     <h2>Cozinha</h2>
-    <p class="muted">Pedidos organizados do mais recente ao mais antigo, com ações rápidas por status.</p>
+    <p class="muted">Pedidos organizados do mais recente ao mais antigo, com atualização automática.</p>
   </div>
   <button type="button" class="btn btn-danger" data-delete-orders>Apagar pedidos</button>
 </section>
@@ -16,9 +17,16 @@
       <div class="order-head">
         <div>
           <p class="order-id">Pedido #{{ entry.order['id'] }}</p>
-          <h3>Mesa {{ entry.order['table_number'] }}{% if entry.order['customer_name'] %} — {{ entry.order['customer_name'] }}{% endif %}</h3>
+          <h3>
+            Mesa {{ entry.order['table_number'] }}
+            {% if entry.order['customer_name'] %}
+              — {{ entry.order['customer_name'] }}
+            {% endif %}
+          </h3>
         </div>
-        <span class="status-pill status-{{ entry.order['status'] }}">{{ entry.status_label }}</span>
+        <span class="status-pill status-{{ entry.order['status'] }}">
+          {{ entry.status_label }}
+        </span>
       </div>
 
       <div class="order-meta">
@@ -27,12 +35,18 @@
       </div>
 
       {% if entry.order['notes'] %}
-        <p class="order-notes"><strong>Observações:</strong> {{ entry.order['notes'] }}</p>
+        <p class="order-notes">
+          <strong>Observações:</strong> {{ entry.order['notes'] }}
+        </p>
       {% endif %}
 
       <ul class="order-items">
         {% for item in entry['items'] %}
-          <li><strong>{{ item['quantity'] }}x</strong> {{ item['name'] }} <span>{{ item['unit_price']|currency }}</span></li>
+          <li>
+            <strong>{{ item['quantity'] }}x</strong>
+            {{ item['name'] }}
+            <span>{{ item['unit_price']|currency }}</span>
+          </li>
         {% endfor %}
       </ul>
 
@@ -46,8 +60,59 @@
   {% else %}
     <div class="empty-state panel">
       <h3>Nenhum pedido ainda</h3>
-      <p class="muted">Quando os clientes enviarem pedidos, eles aparecerão aqui.</p>
+      <p class="muted">Quando os clientes enviarem pedidos, eles aparecerão aqui automaticamente.</p>
     </div>
   {% endfor %}
 </div>
+
+<script>
+  /*
+    Atualização automática da tela da cozinha.
+
+    A cada 1 segundo, a página será atualizada sozinha.
+    Isso faz novos pedidos aparecerem automaticamente na cozinha.
+
+    Observação:
+    Quando o usuário clica em algum botão de status ou em "Apagar pedidos",
+    a atualização automática é pausada para não atrapalhar a ação.
+  */
+
+  (function () {
+    const TEMPO_ATUALIZACAO = 1000;
+    let podeAtualizar = true;
+
+    function pausarAtualizacaoTemporariamente() {
+      podeAtualizar = false;
+
+      window.setTimeout(function () {
+        podeAtualizar = true;
+      }, 5000);
+    }
+
+    document.querySelectorAll('form.status-actions').forEach(function (form) {
+      form.addEventListener('submit', function () {
+        pausarAtualizacaoTemporariamente();
+      });
+    });
+
+    const botaoApagarPedidos = document.querySelector('[data-delete-orders]');
+    if (botaoApagarPedidos) {
+      botaoApagarPedidos.addEventListener('click', function () {
+        pausarAtualizacaoTemporariamente();
+      });
+    }
+
+    window.setInterval(function () {
+      if (!podeAtualizar) return;
+
+      /*
+        Não atualiza quando a aba está em segundo plano.
+        Isso evita consumo desnecessário.
+      */
+      if (document.hidden) return;
+
+      window.location.reload();
+    }, TEMPO_ATUALIZACAO);
+  })();
+</script>
 {% endblock %}
