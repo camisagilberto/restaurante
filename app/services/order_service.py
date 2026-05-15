@@ -13,6 +13,10 @@ ORDER_STATUS_LABELS = {
 ACTIVE_ORDER_STATUSES = ('novo', 'preparando', 'pronto')
 
 
+def _now_iso() -> str:
+    return datetime.utcnow().isoformat(timespec='seconds')
+
+
 def _format_created_at(value) -> str:
     if not value:
         return ''
@@ -61,7 +65,7 @@ def create_order_from_cart(
     customer_name: str,
     notes: str | None = None
 ) -> int:
-    now = datetime.utcnow().isoformat(timespec='seconds')
+    now = _now_iso()
 
     cursor = db.execute(
         '''
@@ -120,11 +124,13 @@ def create_order_from_cart(
     db.execute(
         '''
         UPDATE orders
-        SET total_amount = ?
+        SET total_amount = ?,
+            updated_at = ?
         WHERE id = ?
         ''',
         (
             round(total, 2),
+            now,
             order_id,
         ),
     )
@@ -162,15 +168,34 @@ def list_orders_for_kitchen(db):
     return [_decorate_order(db, order) for order in orders]
 
 
+def get_kitchen_orders_signature(db) -> str:
+    row = db.execute(
+        '''
+        SELECT
+            COUNT(*) AS total_orders,
+            COALESCE(MAX(id), 0) AS last_order_id,
+            COALESCE(MAX(updated_at), '') AS last_update
+        FROM orders
+        '''
+    ).fetchone()
+
+    return f"{row['total_orders']}:{row['last_order_id']}:{row['last_update']}"
+
+
 def update_order_status(db, order_id: int, status: str):
+    if status not in ORDER_STATUS_LABELS:
+        raise ValueError('Status inválido.')
+
     db.execute(
         '''
         UPDATE orders
-        SET status = ?
+        SET status = ?,
+            updated_at = ?
         WHERE id = ?
         ''',
         (
             status,
+            _now_iso(),
             order_id,
         ),
     )
