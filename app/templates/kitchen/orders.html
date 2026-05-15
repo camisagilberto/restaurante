@@ -10,7 +10,7 @@
       Pedidos organizados do mais recente ao mais antigo, com atualização automática sem recarregar a página.
     </p>
     <p class="muted" id="kitchen-live-status">
-      Conectando atualização em tempo real...
+      Monitorando novos pedidos...
     </p>
   </div>
 
@@ -29,9 +29,14 @@
     const liveStatus = document.getElementById('kitchen-live-status');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
+    const SIGNATURE_URL = '{{ url_for("kitchen.orders_signature") }}';
+    const ORDERS_PARTIAL_URL = '{{ url_for("kitchen.orders_partial") }}';
+    const CHECK_INTERVAL_MS = 2000;
+
+    let currentSignature = '{{ initial_signature }}';
+    let isChecking = false;
     let isRefreshing = false;
-    let eventSource = null;
-    let reconnectTimer = null;
+    let lastUpdateAt = new Date();
 
     function setLiveStatus(message) {
       if (liveStatus) {
@@ -39,13 +44,23 @@
       }
     }
 
-    async function refreshKitchenOrders() {
+    function updateLiveStatusOk() {
+      const time = lastUpdateAt.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      setLiveStatus(`Atualização automática ativa. Última verificação: ${time}`);
+    }
+
+    async function refreshKitchenOrders(newSignature) {
       if (!wrapper || isRefreshing) return;
 
       isRefreshing = true;
 
       try {
-        const response = await fetch('{{ url_for("kitchen.orders_partial") }}', {
+        const response = await fetch(ORDERS_PARTIAL_URL, {
           method: 'GET',
           headers: {
             'X-Requested-With': 'XMLHttpRequest'
@@ -58,13 +73,53 @@
         }
 
         const html = await response.text();
-        wrapper.innerHTML = html;
 
-        setLiveStatus('Atualização em tempo real ativa.');
+        wrapper.innerHTML = html;
+        currentSignature = newSignature;
+        lastUpdateAt = new Date();
+
+        updateLiveStatusOk();
       } catch (error) {
-        setLiveStatus('Falha ao atualizar a cozinha. Tentando reconectar...');
+        setLiveStatus('Falha ao atualizar os pedidos. Tentando novamente...');
       } finally {
         isRefreshing = false;
+      }
+    }
+
+    async function checkForKitchenUpdates() {
+      if (isChecking || isRefreshing || document.hidden) return;
+
+      isChecking = true;
+
+      try {
+        const response = await fetch(SIGNATURE_URL, {
+          method: 'GET',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          throw new Error('Falha ao consultar atualizações.');
+        }
+
+        const data = await response.json();
+
+        if (!data.success) {
+          throw new Error('Resposta inválida do servidor.');
+        }
+
+        if (data.signature !== currentSignature) {
+          await refreshKitchenOrders(data.signature);
+        } else {
+          lastUpdateAt = new Date();
+          updateLiveStatusOk();
+        }
+      } catch (error) {
+        setLiveStatus('Conexão instável. Tentando novamente automaticamente...');
+      } finally {
+        isChecking = false;
       }
     }
 
@@ -84,7 +139,8 @@
           headers: {
             'X-Requested-With': 'XMLHttpRequest',
             'X-CSRFToken': csrfToken
-          }
+          },
+          cache: 'no-store'
         });
 
         let data = {};
@@ -97,7 +153,7 @@
           throw new Error(data.message || 'Não foi possível atualizar o status.');
         }
 
-        await refreshKitchenOrders();
+        await checkForKitchenUpdates();
       } catch (error) {
         alert(error.message || 'Erro ao atualizar o status do pedido.');
       } finally {
@@ -105,50 +161,6 @@
           button.disabled = false;
         });
       }
-    }
-
-    function connectRealtime() {
-      if (!('EventSource' in window)) {
-        setLiveStatus('Seu navegador não suporta tempo real. Usando atualização silenciosa.');
-
-        window.setInterval(function () {
-          if (!document.hidden) {
-            refreshKitchenOrders();
-          }
-        }, 5000);
-
-        return;
-      }
-
-      if (eventSource) {
-        eventSource.close();
-      }
-
-      eventSource = new EventSource('{{ url_for("kitchen.kitchen_events") }}');
-
-      eventSource.addEventListener('connected', function () {
-        setLiveStatus('Atualização em tempo real ativa.');
-      });
-
-      eventSource.addEventListener('orders-updated', function () {
-        refreshKitchenOrders();
-      });
-
-      eventSource.addEventListener('ping', function () {
-        setLiveStatus('Atualização em tempo real ativa.');
-      });
-
-      eventSource.onerror = function () {
-        setLiveStatus('Conexão perdida. Tentando reconectar automaticamente...');
-
-        if (reconnectTimer) {
-          window.clearTimeout(reconnectTimer);
-        }
-
-        reconnectTimer = window.setTimeout(function () {
-          connectRealtime();
-        }, 3000);
-      };
     }
 
     document.addEventListener('submit', function (event) {
@@ -160,7 +172,14 @@
       submitStatusForm(form);
     });
 
-    connectRealtime();
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) {
+        checkForKitchenUpdates();
+      }
+    });
+
+    updateLiveStatusOk();
+    window.setInterval(checkForKitchenUpdates, CHECK_INTERVAL_MS);
   })();
 </script>
 {% endblock %}
