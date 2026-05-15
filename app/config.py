@@ -9,9 +9,13 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-only-change-me')
     DATABASE = os.getenv('DATABASE_PATH', str(BASE_DIR / 'instance' / 'app.sqlite3'))
+
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', '0') == '1'
     PERMANENT_SESSION_LIFETIME = 60 * 60 * 8
+
     MAX_CONTENT_LENGTH = 1 * 1024 * 1024
-    TEMPLATES_AUTO_RELOAD = True
+
+    TEMPLATES_AUTO_RELOAD = os.getenv('FLASK_DEBUG', '0') == '1'
+    SEND_FILE_MAX_AGE_DEFAULT = 60 * 60 * 24 * 7
