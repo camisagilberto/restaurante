@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
 
 ORDER_STATUS_LABELS = {
@@ -32,9 +33,17 @@ def _format_created_at(value) -> str:
     return text
 
 
-def _decorate_order(db, order):
-    items = db.execute(
-        '''
+def _decorate_orders(db, orders):
+    orders = list(orders)
+
+    if not orders:
+        return []
+
+    order_ids = [int(order['id']) for order in orders]
+    placeholders = ', '.join('?' for _ in order_ids)
+
+    item_rows = db.execute(
+        f'''
         SELECT
             oi.id,
             oi.order_id,
@@ -44,18 +53,26 @@ def _decorate_order(db, order):
             oi.unit_price
         FROM order_items oi
         LEFT JOIN products p ON p.id = oi.product_id
-        WHERE oi.order_id = ?
-        ORDER BY oi.id ASC
+        WHERE oi.order_id IN ({placeholders})
+        ORDER BY oi.order_id DESC, oi.id ASC
         ''',
-        (order['id'],),
+        order_ids,
     ).fetchall()
 
-    return {
-        'order': order,
-        'items': items,
-        'status_label': ORDER_STATUS_LABELS.get(order['status'], order['status']),
-        'created_at_display': _format_created_at(order['created_at']),
-    }
+    items_by_order = defaultdict(list)
+
+    for item in item_rows:
+        items_by_order[int(item['order_id'])].append(item)
+
+    return [
+        {
+            'order': order,
+            'items': items_by_order[int(order['id'])],
+            'status_label': ORDER_STATUS_LABELS.get(order['status'], order['status']),
+            'created_at_display': _format_created_at(order['created_at']),
+        }
+        for order in orders
+    ]
 
 
 def create_order_from_cart(
@@ -63,45 +80,43 @@ def create_order_from_cart(
     table_number: str,
     cart: list[dict],
     customer_name: str,
-    notes: str | None = None
+    notes: str | None = None,
 ) -> int:
     now = _now_iso()
 
-    cursor = db.execute(
-        '''
-        INSERT INTO orders (
-            table_number,
-            customer_name,
-            status,
-            notes,
-            total_amount,
-            created_at,
-            updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''',
-        (
-            str(table_number),
-            customer_name,
-            'novo',
-            notes,
-            0,
-            now,
-            now,
-        ),
+    total = round(
+        sum(float(item['price']) * int(item['quantity']) for item in cart),
+        2,
     )
 
-    order_id = cursor.lastrowid
+    try:
+        cursor = db.execute(
+            '''
+            INSERT INTO orders (
+                table_number,
+                customer_name,
+                status,
+                notes,
+                total_amount,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''',
+            (
+                str(table_number),
+                customer_name,
+                'novo',
+                notes,
+                total,
+                now,
+                now,
+            ),
+        )
 
-    total = 0.0
+        order_id = cursor.lastrowid
 
-    for item in cart:
-        quantity = int(item['quantity'])
-        unit_price = float(item['price'])
-
-        total += quantity * unit_price
-
-        db.execute(
+        db.executemany(
             '''
             INSERT INTO order_items (
                 order_id,
@@ -112,31 +127,24 @@ def create_order_from_cart(
             )
             VALUES (?, ?, ?, ?, ?)
             ''',
-            (
-                order_id,
-                item['product_id'],
-                item['name'],
-                quantity,
-                unit_price,
-            ),
+            [
+                (
+                    order_id,
+                    int(item['product_id']),
+                    str(item['name']),
+                    int(item['quantity']),
+                    float(item['price']),
+                )
+                for item in cart
+            ],
         )
 
-    db.execute(
-        '''
-        UPDATE orders
-        SET total_amount = ?,
-            updated_at = ?
-        WHERE id = ?
-        ''',
-        (
-            round(total, 2),
-            now,
-            order_id,
-        ),
-    )
+        db.commit()
+        return int(order_id)
 
-    db.commit()
-    return order_id
+    except Exception:
+        db.rollback()
+        raise
 
 
 def list_orders_for_table(db, table_number: str):
@@ -153,7 +161,7 @@ def list_orders_for_table(db, table_number: str):
         (str(table_number), *ACTIVE_ORDER_STATUSES),
     ).fetchall()
 
-    return [_decorate_order(db, order) for order in orders]
+    return _decorate_orders(db, orders)
 
 
 def list_orders_for_kitchen(db):
@@ -165,7 +173,7 @@ def list_orders_for_kitchen(db):
         '''
     ).fetchall()
 
-    return [_decorate_order(db, order) for order in orders]
+    return _decorate_orders(db, orders)
 
 
 def get_kitchen_orders_signature(db) -> str:
@@ -186,23 +194,34 @@ def update_order_status(db, order_id: int, status: str):
     if status not in ORDER_STATUS_LABELS:
         raise ValueError('Status inválido.')
 
-    db.execute(
-        '''
-        UPDATE orders
-        SET status = ?,
-            updated_at = ?
-        WHERE id = ?
-        ''',
-        (
-            status,
-            _now_iso(),
-            order_id,
-        ),
-    )
-    db.commit()
+    try:
+        db.execute(
+            '''
+            UPDATE orders
+            SET status = ?,
+                updated_at = ?
+            WHERE id = ?
+            ''',
+            (
+                status,
+                _now_iso(),
+                order_id,
+            ),
+        )
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
 
 
 def delete_all_orders(db):
-    db.execute('DELETE FROM order_items')
-    db.execute('DELETE FROM orders')
-    db.commit()
+    try:
+        db.execute('DELETE FROM order_items')
+        db.execute('DELETE FROM orders')
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
