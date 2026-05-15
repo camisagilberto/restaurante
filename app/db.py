@@ -54,8 +54,10 @@ CREATE TABLE IF NOT EXISTS order_items (
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_products_active_category ON products(active, category, name);
+CREATE INDEX IF NOT EXISTS idx_products_active_category ON products(active, category, sort_order, name);
 CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_orders_updated_id ON orders(updated_at, id);
+CREATE INDEX IF NOT EXISTS idx_orders_table_status ON orders(table_number, status, id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 '''
 
@@ -67,12 +69,23 @@ DEFAULT_PRODUCTS = [
 ]
 
 
+def _configure_connection(db: sqlite3.Connection) -> None:
+    db.row_factory = sqlite3.Row
+    db.execute('PRAGMA foreign_keys = ON')
+    db.execute('PRAGMA busy_timeout = 30000')
+    db.execute('PRAGMA temp_store = MEMORY')
+    db.execute('PRAGMA cache_size = -8000')
+
+
 def get_db():
     if 'db' not in g:
-        db = sqlite3.connect(current_app.config['DATABASE'])
-        db.row_factory = sqlite3.Row
-        db.execute('PRAGMA foreign_keys = ON')
+        db = sqlite3.connect(
+            current_app.config['DATABASE'],
+            timeout=30,
+        )
+        _configure_connection(db)
         g.db = db
+
     return g.db
 
 
@@ -105,27 +118,41 @@ def _migrate_admin_passwords(db: sqlite3.Connection) -> None:
 
     if 'password_hash' not in columns:
         _ensure_column(db, 'admins', 'password_hash TEXT')
+
     if 'is_active' not in columns:
         _ensure_column(db, 'admins', 'is_active INTEGER NOT NULL DEFAULT 1')
 
     if 'password' in columns:
         rows = db.execute('SELECT id, password, password_hash FROM admins').fetchall()
+
         for row in rows:
             current_hash = row['password_hash'] or ''
+
             if current_hash.startswith(('pbkdf2:', 'scrypt:', 'argon2:')):
                 continue
+
             raw = current_hash or row['password'] or os.getenv('ADMIN_PASSWORD', '123456')
+
             if not str(raw).startswith(('pbkdf2:', 'scrypt:', 'argon2:')):
                 raw = generate_password_hash(str(raw))
-            db.execute('UPDATE admins SET password_hash = ? WHERE id = ?', (raw, row['id']))
+
+            db.execute(
+                'UPDATE admins SET password_hash = ? WHERE id = ?',
+                (raw, row['id']),
+            )
     else:
         rows = db.execute('SELECT id, password_hash FROM admins').fetchall()
+
         for row in rows:
             current_hash = row['password_hash'] or ''
+
             if not current_hash.startswith(('pbkdf2:', 'scrypt:', 'argon2:')):
                 db.execute(
                     'UPDATE admins SET password_hash = ? WHERE id = ?',
-                    (generate_password_hash(current_hash or os.getenv('ADMIN_PASSWORD', '123456')), row['id'])
+                    (
+                        generate_password_hash(current_hash or os.getenv('ADMIN_PASSWORD', '123456')),
+                        row['id'],
+                    ),
                 )
 
 
@@ -136,7 +163,10 @@ def _seed_defaults(db: sqlite3.Connection) -> None:
     if db.execute('SELECT COUNT(*) FROM admins').fetchone()[0] == 0:
         db.execute(
             'INSERT INTO admins (username, password_hash, is_active) VALUES (?, ?, 1)',
-            (default_admin_username, generate_password_hash(default_admin_password)),
+            (
+                default_admin_username,
+                generate_password_hash(default_admin_password),
+            ),
         )
 
     if db.execute('SELECT COUNT(*) FROM products').fetchone()[0] == 0:
@@ -168,6 +198,7 @@ def migrate_schema(db: sqlite3.Connection) -> None:
             'updated_at TEXT',
         ]:
             _ensure_column(db, 'orders', column_def)
+
         db.execute('UPDATE orders SET customer_name = COALESCE(customer_name, "")')
 
     if _table_exists(db, 'order_items'):
@@ -197,6 +228,10 @@ def init_db(app):
 
     with app.app_context():
         db = get_db()
+
+        db.execute('PRAGMA journal_mode = WAL')
+        db.execute('PRAGMA synchronous = NORMAL')
+
         db.executescript(SCHEMA_SQL)
         migrate_schema(db)
         _backfill_timestamps(db)
