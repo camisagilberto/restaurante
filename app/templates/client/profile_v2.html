@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+{% block title %}Perfil{% endblock %}
+
+{% block content %}
+<style>
+  .choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .choice-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 16px;
+    border: 1px solid rgba(30, 30, 30, .12);
+    border-radius: 18px;
+    background: #ffffff;
+    cursor: pointer;
+  }
+
+  .choice-card input {
+    margin-top: 4px;
+  }
+
+  .choice-card strong {
+    display: block;
+    color: #1e1e1e;
+    margin-bottom: 4px;
+  }
+
+  .choice-card span {
+    display: block;
+    color: #64748b;
+    line-height: 1.45;
+    font-size: .92rem;
+  }
+
+  .required-mark {
+    color: #f97316;
+    font-weight: 900;
+  }
+
+  @media (max-width: 720px) {
+    .choice-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<section class="hero-card hero-card--table">
+  <div class="hero-card-copy">
+    <p class="eyebrow">Perfil do restaurante</p>
+    <div class="table-title-row">
+      <h2>{{ profile.restaurant_name }}</h2>
+      <span class="badge-inline">{{ profile.username }}</span>
+    </div>
+    <p class="muted">Atualize os dados do responsável, do restaurante, o modo de operação e as senhas de acesso.</p>
+  </div>
+</section>
+
+<section class="summary-strip">
+  <div class="summary-card">
+    <span class="summary-label">Restaurante</span>
+    <strong>{{ profile.restaurant_name }}</strong>
+  </div>
+
+  <div class="summary-card">
+    <span class="summary-label">Usuário</span>
+    <strong>{{ profile.username }}</strong>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="section-heading">
+    <div>
+      <h3>Dados cadastrais</h3>
+      <p class="muted">Revise os campos abaixo e salve quando terminar. Campos com <span class="required-mark">*</span> são obrigatórios.</p>
+    </div>
+  </div>
+
+  <form method="post" class="stacked-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-row">
+      <div>
+        <label for="owner_name">Nome do responsável <span class="required-mark">*</span></label>
+        <input id="owner_name" type="text" name="owner_name" value="{{ profile.owner_name }}" required>
+      </div>
+
+      <div>
+        <label for="age">Idade <span class="required-mark">*</span></label>
+        <input id="age" type="number" name="age" min="1" max="120" value="{{ profile.age }}" required>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label for="email">E-mail <span class="required-mark">*</span></label>
+        <input id="email" type="email" name="email" value="{{ profile.email }}" required>
+      </div>
+
+      <div>
+        <label for="restaurant_name">Nome do restaurante <span class="required-mark">*</span></label>
+        <input id="restaurant_name" type="text" name="restaurant_name" value="{{ profile.restaurant_name }}" required>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label for="cell_phone">Celular</label>
+        <input id="cell_phone" type="tel" name="cell_phone" value="{{ profile.cell_phone }}" placeholder="Opcional">
+      </div>
+
+      <div>
+        <label for="restaurant_address">CEP do estabelecimento <span class="required-mark">*</span></label>
+        <input id="restaurant_address" type="text" name="restaurant_address" value="{{ profile.restaurant_address }}" inputmode="numeric" maxlength="9" placeholder="Ex.: 01001000" required>
+      </div>
+    </div>
+
+    {% set selected_service_mode = profile.service_mode or 'full_order_payment' %}
+    <div>
+      <label>Modo de operação do QRTotem <span class="required-mark">*</span></label>
+      <div class="choice-grid">
+        <label class="choice-card" for="service_mode_digital_menu">
+          <input id="service_mode_digital_menu" type="radio" name="service_mode" value="digital_menu" {% if selected_service_mode == 'digital_menu' %}checked{% endif %} required>
+          <span>
+            <strong>Cardápio digital</strong>
+            <span>O cliente vê o cardápio e acessa os cupons após cadastro. Carrinho, pedidos, pagamento e cozinha ficam desabilitados.</span>
+          </span>
+        </label>
+
+        <label class="choice-card" for="service_mode_full_order_payment">
+          <input id="service_mode_full_order_payment" type="radio" name="service_mode" value="full_order_payment" {% if selected_service_mode != 'digital_menu' %}checked{% endif %} required>
+          <span>
+            <strong>Cardápio + pedido + pagamento</strong>
+            <span>O cliente monta o pedido no carrinho, finaliza, paga pelo site e o pedido segue para a cozinha.</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    {% set selected_payment_mode = profile.order_payment_mode or 'pay_after' %}
+    <div>
+      <label>Momento do pagamento <span class="required-mark">*</span></label>
+      <div class="choice-grid">
+        <label class="choice-card" for="pay_before">
+          <input id="pay_before" type="radio" name="order_payment_mode" value="pay_before" {% if selected_payment_mode == 'pay_before' %}checked{% endif %} required>
+          <span>
+            <strong>Pagamento antes</strong>
+            <span>O cliente deve pagar antes do pedido seguir como finalizado.</span>
+          </span>
+        </label>
+
+        <label class="choice-card" for="pay_after">
+          <input id="pay_after" type="radio" name="order_payment_mode" value="pay_after" {% if selected_payment_mode != 'pay_before' %}checked{% endif %} required>
+          <span>
+            <strong>Pagamento depois de finalizar o pedido</strong>
+            <span>O cliente finaliza o pedido e o pagamento é tratado depois pelo restaurante.</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+
+
+    <div class="payment-setup-card" style="border: 1px solid rgba(30,30,30,.12); border-radius: 18px; padding: 18px; background: #fff7ed;">
+      <div class="section-heading" style="margin-bottom: 10px;">
+        <div>
+          <h3 style="margin-bottom: 4px;">Pagamentos Pix</h3>
+          <p class="muted">Conexão Mercado Pago do restaurante. O dinheiro dos pedidos cairá direto na conta do restaurante quando o fluxo completo estiver ativo.</p>
+        </div>
+        <span class="badge-inline">{{ payment_status.status_label }}</span>
+      </div>
+
+      {% if selected_service_mode == 'digital_menu' %}
+        <p class="muted">Este recurso é usado apenas no modo <strong>Cardápio + pedido + pagamento</strong>. Como este restaurante está no modo <strong>Cardápio digital</strong>, a conexão Mercado Pago não é necessária agora.</p>
+      {% else %}
+        <p class="muted">{{ payment_status.description }}</p>
+
+        {% if not payment_status.env_ready %}
+          <div class="notice-box" style="margin-top: 12px; padding: 12px; border-radius: 14px; background: #fff; border: 1px solid rgba(249,115,22,.28);">
+            <strong>Configuração pendente</strong>
+            <p class="muted" style="margin: 6px 0 0;">Antes de ativar a conexão real, configure no Railway:</p>
+            <ul class="muted" style="margin-top: 8px;">
+              {% for item in payment_status.missing_config %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        <div class="status-actions" style="margin-top: 14px;">
+          <a class="btn btn-primary" href="{{ url_for('payments.mercadopago_connect') }}">{% if payment_status.status == 'connected' %}Reconectar Mercado Pago{% else %}Conectar Mercado Pago{% endif %}</a>
+
+          {% if payment_status.status in ['connected', 'error', 'disabled'] %}
+            <button type="submit" class="btn btn-secondary" formaction="{{ url_for('payments.mercadopago_disconnect') }}" formmethod="post">Desconectar</button>
+          {% endif %}
+        </div>
+
+        <div class="payment-help-box">
+          <strong>Antes de receber pedidos via Pix</strong>
+          <p>Confirme se a conta Mercado Pago conectada possui uma chave Pix cadastrada e ativa. Sem isso, o Mercado Pago pode impedir a geração do QR Code Pix.</p>
+          <p>O dinheiro do pedido cai no saldo Mercado Pago da conta conectada. Depois, o restaurante pode transferir para o banco que preferir.</p>
+        </div>
+
+        <p class="muted" style="margin-top: 10px; font-size: .9rem;">Ao clicar em Conectar Mercado Pago, o responsável será redirecionado para autorizar a integração. Após a autorização, o status deverá mudar para Conectado.</p>
+      {% endif %}
+    </div>
+
+    <div class="status-actions">
+      <button type="submit" class="btn btn-primary">Salvar cadastro</button>
+      <a class="btn btn-secondary" href="{{ url_for('client.products_start') }}">Cancelar</a>
+    </div>
+  </form>
+</section>
+
+<section class="panel">
+  <div class="section-heading">
+    <div>
+      <h3>Segurança e senhas</h3>
+      <p class="muted">Altere a senha principal do usuário.</p>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <form method="post" action="{{ url_for('client.change_manager_password') }}" class="stacked-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <h4>Alterar senha do usuário</h4>
+
+      <div>
+        <label for="current_password">Senha atual do usuário <span class="required-mark">*</span></label>
+        <input id="current_password" type="password" name="current_password" autocomplete="current-password" required>
+      </div>
+
+      <div>
+        <label for="new_password">Nova senha do usuário <span class="required-mark">*</span></label>
+        <input id="new_password" type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+      </div>
+
+      <div>
+        <label for="new_password_confirm">Confirmar nova senha do usuário <span class="required-mark">*</span></label>
+        <input id="new_password_confirm" type="password" name="new_password_confirm" autocomplete="new-password" minlength="8" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Alterar senha do usuário</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

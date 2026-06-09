@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Pedidos da Mesa {{ table_number }}{% endblock %}
+
+{% block content %}
+{% set client_actions_mode = 'orders' %}
+{% include 'client/_fixed_actions.html' %}
+
+<div id="client-orders-wrapper">
+  <div class="orders-grid">
+    {% for entry in orders %}
+      <article class="order-card status-{{ entry.order['status'] }}">
+        <div class="order-head">
+          <div>
+            <p class="order-id">Pedido #{{ entry.order['id'] }}</p>
+            <h3>Mesa {{ entry.order['table_number'] }} — Pedido #{{ entry.order['id'] }}</h3>
+          </div>
+
+          {% if entry.order['payment_provider'] == 'offline' and entry.order['payment_status'] == 'pending' %}
+            <span class="status-pill status-pending">Aguardando confirmação do atendente</span>
+          {% elif entry.order['payment_required'] and entry.order['payment_status'] == 'pending' %}
+            <span class="status-pill status-pending">Aguardando pagamento</span>
+          {% else %}
+            <span class="status-pill status-{{ entry.order['status'] }}">
+              {{ entry.status_label }}
+            </span>
+          {% endif %}
+        </div>
+
+        <div class="order-meta">
+          <span>{{ entry.created_at_display }}</span>
+          <strong>{{ entry.order['total_amount']|currency }}</strong>
+        </div>
+
+        <p class="order-notes">
+          <strong>Mesa:</strong> {{ entry.order['table_number'] }}
+        </p>
+
+        {% if entry.order['payment_provider'] == 'offline' and entry.order['payment_status'] == 'pending' %}
+          <p class="order-notes order-waiting-note">
+            Seu pedido foi recebido e está aguardando o atendente confirmar para enviar à cozinha.
+          </p>
+        {% endif %}
+
+        {% if entry.order['notes'] %}
+          <p class="order-notes">
+            <strong>Observações:</strong> {{ entry.order['notes'] }}
+          </p>
+        {% endif %}
+
+        <ul class="order-items">
+          {% for item in entry['items'] %}
+            <li>
+              <strong>{{ item['quantity'] }}x</strong>
+              {{ item['name'] }}
+              <span>{{ item['unit_price']|currency }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </article>
+    {% else %}
+      <div class="empty-state panel">
+        <h3>Nenhum pedido encontrado</h3>
+        <p class="muted">Quando você finalizar um pedido, ele aparecerá aqui com o status atualizado.</p>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+  (function () {
+    const wrapper = document.getElementById('client-orders-wrapper');
+    const CHECK_INTERVAL_MS = 2000;
+
+    let isRefreshing = false;
+    let currentHtml = wrapper ? wrapper.innerHTML : '';
+
+    async function refreshClientOrders() {
+      if (!wrapper || isRefreshing || document.hidden) return;
+
+      isRefreshing = true;
+
+      try {
+        const response = await fetch(window.location.href, {
+          method: 'GET',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          cache: 'no-store'
+        });
+
+        if (!response.ok) {
+          throw new Error('Não foi possível consultar os pedidos.');
+        }
+
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const nextWrapper = doc.getElementById('client-orders-wrapper');
+
+        if (!nextWrapper) {
+          throw new Error('Conteúdo dos pedidos não encontrado.');
+        }
+
+        const nextHtml = nextWrapper.innerHTML;
+
+        if (nextHtml !== currentHtml) {
+          wrapper.innerHTML = nextHtml;
+          currentHtml = nextHtml;
+        }
+      } catch (error) {
+        console.warn(error.message || 'Erro ao atualizar pedidos.');
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) {
+        refreshClientOrders();
+      }
+    });
+
+    window.setInterval(function () {
+      refreshClientOrders();
+    }, CHECK_INTERVAL_MS);
+  })();
+</script>
+{% endblock %}

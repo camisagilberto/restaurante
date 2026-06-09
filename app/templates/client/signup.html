@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% block title %}Cadastro do restaurante{% endblock %}
+{% block content %}
+<style>
+  .mode-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .mode-choice-card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 16px;
+    border: 1px solid rgba(30, 30, 30, .12);
+    border-radius: 18px;
+    background: #ffffff;
+    cursor: pointer;
+  }
+
+  .mode-choice-card input {
+    margin-top: 4px;
+  }
+
+  .mode-choice-card strong {
+    display: block;
+    color: #1e1e1e;
+    margin-bottom: 4px;
+  }
+
+  .mode-choice-card span {
+    display: block;
+    color: #64748b;
+    line-height: 1.45;
+    font-size: .92rem;
+  }
+
+  .required-mark {
+    color: #f97316;
+    font-weight: 900;
+  }
+
+  .referral-status {
+    display: block;
+    margin-top: 6px;
+    font-size: .9rem;
+    font-weight: 700;
+  }
+
+  .referral-status.success { color: #15803d; }
+  .referral-status.error { color: #b91c1c; }
+  .referral-status.info { color: #475569; }
+
+  @media (max-width: 720px) {
+    .mode-choice-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<section class="auth-layout">
+  <div class="auth-copy panel panel-accent">
+    <p class="eyebrow">Primeiro acesso</p>
+    <h2>Crie o acesso do restaurante</h2>
+    <p class="muted">Preencha os dados do responsável e do restaurante para liberar o início do cadastro dos produtos.</p>
+    <p class="muted">Use uma senha segura para administrar o sistema.</p>
+  </div>
+
+  <form method="post" class="panel auth-form stacked-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="form-row">
+      <div>
+        <label for="owner_name">Nome <span class="required-mark">*</span></label>
+        <input id="owner_name" type="text" name="owner_name" autocomplete="name" required>
+      </div>
+      <div>
+        <label for="age">Idade <span class="required-mark">*</span></label>
+        <input id="age" type="number" name="age" min="1" max="120" required>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label for="email">E-mail <span class="required-mark">*</span></label>
+        <input id="email" type="email" name="email" autocomplete="email" required>
+      </div>
+      <div>
+        <label for="restaurant_name">Nome do restaurante <span class="required-mark">*</span></label>
+        <input id="restaurant_name" type="text" name="restaurant_name" required>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label for="cell_phone">Celular</label>
+        <input id="cell_phone" type="tel" name="cell_phone" autocomplete="tel" placeholder="Opcional">
+      </div>
+      <div>
+        <label for="restaurant_address">CEP do estabelecimento <span class="required-mark">*</span></label>
+        <input id="restaurant_address" type="text" name="restaurant_address" inputmode="numeric" maxlength="9" placeholder="Ex.: 01001000" required>
+      </div>
+    </div>
+
+
+    <div>
+      <label for="indicated_by">Indicado por</label>
+      <input id="indicated_by" type="text" name="indicated_by" placeholder="Usuário ou e-mail de um cliente já cadastrado" data-referrer-lookup-url="{{ url_for('client.validate_referrer_customer') }}">
+      <small class="muted">Opcional. Use o usuário ou e-mail do cliente que indicou o restaurante.</small>
+      <small id="indicated_by_status" class="referral-status info" aria-live="polite"></small>
+    </div>
+
+    <div>
+      <label>Como o restaurante quer usar o QRTotem? <span class="required-mark">*</span></label>
+      <div class="mode-choice-grid">
+        <label class="mode-choice-card" for="service_mode_digital_menu">
+          <input id="service_mode_digital_menu" type="radio" name="service_mode" value="digital_menu" required>
+          <span>
+            <strong>Cardápio digital</strong>
+            <span>O cliente vê o cardápio e acessa os cupons após cadastro. Carrinho, pedidos, pagamento e cozinha ficam desabilitados.</span>
+          </span>
+        </label>
+
+        <label class="mode-choice-card" for="service_mode_full_order_payment">
+          <input id="service_mode_full_order_payment" type="radio" name="service_mode" value="full_order_payment" checked required>
+          <span>
+            <strong>Cardápio + pedido + pagamento</strong>
+            <span>O cliente monta o pedido no carrinho, finaliza, paga pelo site e o pedido segue para a cozinha.</span>
+          </span>
+        </label>
+      </div>
+      <input type="hidden" name="order_payment_mode" value="pay_after">
+    </div>
+
+    <div class="form-row">
+      <div>
+        <label for="username">Usuário <span class="required-mark">*</span></label>
+        <input id="username" type="text" name="username" autocomplete="username" required>
+      </div>
+      <div>
+        <label for="password">Senha do usuário <span class="required-mark">*</span></label>
+        <input id="password" type="password" name="password" autocomplete="new-password" minlength="8" required>
+      </div>
+    </div>
+
+    <div>
+      <label for="password_confirm">Confirmação da senha do usuário <span class="required-mark">*</span></label>
+      <input id="password_confirm" type="password" name="password_confirm" autocomplete="new-password" minlength="8" required>
+    </div>
+
+    <p class="muted">Recomendação: use uma senha forte, com no mínimo 8 caracteres.</p>
+
+    <button type="submit" class="btn btn-primary btn-block">Avançar</button>
+  </form>
+</section>
+{% endblock %}

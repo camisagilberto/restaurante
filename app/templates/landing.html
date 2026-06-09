@@ -1,0 +1,3528 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#FFFFFF">
+
+  <title>QRTotem | Pedidos por QR Code para restaurantes</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/favicon-192.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+
+  <style>
+    :root {
+      --graphite: #1E1E1E;
+      --gray: #404040;
+      --light: #F5F5F5;
+      --white: #FFFFFF;
+      --orange: #F97316;
+      --orange-dark: #EA580C;
+      --line: rgba(30, 30, 30, 0.08);
+      --muted: rgba(64, 64, 64, 0.74);
+      --shadow: 0 24px 70px rgba(30, 30, 30, 0.08);
+      --shadow-soft: 0 14px 34px rgba(30, 30, 30, 0.06);
+      --radius: 28px;
+      --container: 1180px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Manrope", sans-serif;
+      color: var(--graphite);
+      background: var(--white);
+      letter-spacing: -0.025em;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .landing-shell {
+      width: min(var(--container), calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .landing-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      min-height: 82px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255, 255, 255, .94);
+      backdrop-filter: blur(18px);
+    }
+
+    .landing-brand {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .landing-brand img {
+      width: 150px;
+      height: auto;
+    }
+
+    .landing-nav {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .landing-nav a {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 15px;
+      border-radius: 999px;
+      color: var(--gray);
+      font-size: .92rem;
+      font-weight: 600;
+      transition: background-color .18s ease, color .18s ease, transform .18s ease;
+    }
+
+    .landing-nav a:hover {
+      color: var(--graphite);
+      background: var(--light);
+      transform: translateY(-1px);
+    }
+
+    .landing-nav .nav-cta {
+      padding-inline: 20px;
+      color: var(--white);
+      background: var(--orange);
+      box-shadow: 0 12px 28px rgba(249, 115, 22, .18);
+    }
+
+    .landing-nav .nav-cta:hover {
+      color: var(--white);
+      background: var(--orange-dark);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.02fr) minmax(360px, .98fr);
+      gap: 56px;
+      align-items: center;
+      padding: 76px 0 64px;
+    }
+
+    .hero-copy {
+      max-width: 660px;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 18px;
+      padding: 8px 13px;
+      border: 1px solid rgba(249, 115, 22, .18);
+      border-radius: 999px;
+      background: rgba(249, 115, 22, .06);
+      color: var(--orange-dark);
+      font-size: .78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--orange);
+      box-shadow: 0 0 0 6px rgba(249, 115, 22, .12);
+    }
+
+    .hero h1 {
+      margin: 0;
+      max-width: 720px;
+      font-size: clamp(2.75rem, 5.2vw, 5.15rem);
+      line-height: .98;
+      letter-spacing: -0.075em;
+      font-weight: 800;
+      color: var(--graphite);
+    }
+
+    .hero h1 span {
+      color: var(--orange);
+    }
+
+    .hero p {
+      max-width: 610px;
+      margin: 24px 0 0;
+      color: var(--muted);
+      font-size: clamp(1rem, 1.25vw, 1.18rem);
+      font-weight: 500;
+      line-height: 1.72;
+    }
+
+    .hero-price-card {
+      max-width: 610px;
+      margin-top: 26px;
+      padding: 20px 22px;
+      border-radius: 24px;
+      background: linear-gradient(135deg, rgba(249, 115, 22, .10), rgba(249, 115, 22, .035));
+      border: 1px solid rgba(249, 115, 22, .18);
+      box-shadow: 0 16px 40px rgba(249, 115, 22, .10);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .price-kicker {
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 8px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: var(--white);
+      border: 1px solid rgba(249, 115, 22, .18);
+      color: var(--orange-dark);
+      font-size: .72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .price-title {
+      display: block;
+      color: var(--graphite);
+      font-size: 1rem;
+      font-weight: 800;
+      line-height: 1.25;
+      letter-spacing: -0.04em;
+    }
+
+    .price-subtitle {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: .9rem;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .price-value {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      color: var(--graphite);
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .price-value small {
+      margin-bottom: 7px;
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--orange-dark);
+    }
+
+    .price-value strong {
+      color: var(--orange);
+      font-size: clamp(2.15rem, 3.6vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.075em;
+    }
+
+    .price-value span {
+      margin-bottom: 7px;
+      color: var(--gray);
+      font-size: .95rem;
+      font-weight: 800;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 32px;
+    }
+
+    .btn {
+      min-height: 52px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 22px;
+      border-radius: 15px;
+      border: 1px solid transparent;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      transition: transform .18s ease, background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--orange);
+      color: var(--white);
+      box-shadow: 0 16px 36px rgba(249, 115, 22, .22);
+    }
+
+    .btn-primary:hover {
+      background: var(--orange-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 20px 44px rgba(249, 115, 22, .26);
+    }
+
+    .btn-secondary {
+      background: var(--white);
+      border-color: var(--line);
+      color: var(--graphite);
+    }
+
+    .btn-secondary:hover {
+      background: var(--light);
+      transform: translateY(-2px);
+    }
+
+    .hero-note {
+      margin-top: 18px;
+      color: var(--gray);
+      font-size: .94rem;
+      font-weight: 500;
+    }
+
+    .hero-note a {
+      color: var(--orange-dark);
+      font-weight: 700;
+    }
+
+    .hero-visual {
+      position: relative;
+      min-height: 560px;
+      border-radius: 38px;
+      background: var(--light);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .hero-visual::before {
+      content: "";
+      position: absolute;
+      inset: 22px;
+      border-radius: 30px;
+      background: var(--white);
+      border: 1px solid var(--line);
+    }
+
+    .mock-phone {
+      position: absolute;
+      width: 228px;
+      height: 456px;
+      top: 54px;
+      left: 54px;
+      padding: 12px;
+      border-radius: 36px;
+      background: var(--graphite);
+      box-shadow: 0 28px 54px rgba(30, 30, 30, .22);
+      transform: rotate(-4deg);
+      z-index: 2;
+    }
+
+    .mock-phone.second {
+      top: 92px;
+      left: auto;
+      right: 52px;
+      transform: rotate(5deg);
+    }
+
+    .mock-screen {
+      height: 100%;
+      border-radius: 27px;
+      background: var(--white);
+      padding: 20px 14px;
+      overflow: hidden;
+    }
+
+    .mock-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      font-size: .78rem;
+      font-weight: 800;
+      color: var(--graphite);
+    }
+
+    .mock-pill {
+      width: 48px;
+      height: 5px;
+      border-radius: 999px;
+      background: #D9D9D9;
+    }
+
+    .mock-title {
+      margin: 0 0 16px;
+      font-size: 1.15rem;
+      line-height: 1.15;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+    }
+
+    .mock-item {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .mock-food {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background:
+        radial-gradient(circle at 42% 38%, #FDBA74 0 22%, transparent 23%),
+        linear-gradient(135deg, #F97316, #1E1E1E);
+    }
+
+    .mock-lines {
+      display: grid;
+      gap: 7px;
+    }
+
+    .mock-lines span {
+      height: 7px;
+      border-radius: 999px;
+      background: #E7E7E7;
+    }
+
+    .mock-lines span:first-child {
+      width: 92%;
+      background: #CFCFCF;
+    }
+
+    .mock-lines span:last-child {
+      width: 58%;
+    }
+
+    .mock-total {
+      margin-top: 22px;
+      display: flex;
+      justify-content: space-between;
+      font-weight: 800;
+    }
+
+    .mock-button {
+      position: absolute;
+      left: 26px;
+      right: 26px;
+      bottom: 26px;
+      min-height: 46px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--orange);
+      color: var(--white);
+      font-size: .86rem;
+      font-weight: 800;
+    }
+
+    .floating-card {
+      position: absolute;
+      left: 44px;
+      right: 44px;
+      bottom: 34px;
+      z-index: 4;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .metric {
+      padding: 17px;
+      border-radius: 20px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.35rem;
+      line-height: 1;
+      letter-spacing: -0.055em;
+      color: var(--graphite);
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 7px;
+      color: var(--gray);
+      font-size: .78rem;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .section {
+      padding: 56px 0;
+    }
+
+    .section-head {
+      max-width: 760px;
+      margin-bottom: 26px;
+    }
+
+    .section-head h2 {
+      margin: 0;
+      font-size: clamp(2rem, 3vw, 3.1rem);
+      line-height: 1.05;
+      letter-spacing: -0.065em;
+      font-weight: 800;
+    }
+
+    .section-head p {
+      margin: 14px 0 0;
+      max-width: 640px;
+      color: var(--muted);
+      font-size: 1rem;
+      font-weight: 500;
+    }
+
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .benefit-card {
+      padding: 26px;
+      border-radius: var(--radius);
+      background: var(--white);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .benefit-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 20px;
+      border-radius: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(249, 115, 22, .2);
+      background: rgba(249, 115, 22, .07);
+      color: var(--orange);
+      font-size: 1.45rem;
+      font-weight: 800;
+    }
+
+    .benefit-card h3 {
+      margin: 0;
+      font-size: 1.18rem;
+      line-height: 1.2;
+      letter-spacing: -0.04em;
+      font-weight: 800;
+    }
+
+    .benefit-card p {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: .94rem;
+      font-weight: 500;
+    }
+
+    .journey-section {
+      padding-top: 18px;
+    }
+
+    .journey-wrap {
+      border-radius: 34px;
+      background: linear-gradient(180deg, #FFF8F2, #FFFFFF 38%);
+      border: 1px solid rgba(249, 115, 22, .10);
+      box-shadow: var(--shadow-soft);
+      padding: 34px;
+    }
+
+    .journey-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, .08);
+      color: var(--orange-dark);
+      font-size: .78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .journey-kicker::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--orange);
+    }
+
+    .journey-desktop {
+      display: block;
+    }
+
+    .journey-mobile {
+      display: none;
+    }
+
+    .journey-tabs {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 26px;
+    }
+
+    .journey-tab {
+      min-height: 94px;
+      padding: 16px 14px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--graphite);
+      text-align: left;
+      display: grid;
+      gap: 6px;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+      cursor: pointer;
+    }
+
+    .journey-tab:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .journey-tab.is-active {
+      border-color: rgba(249, 115, 22, .28);
+      background: linear-gradient(180deg, rgba(249, 115, 22, .12), rgba(249, 115, 22, .04));
+      box-shadow: var(--shadow-soft);
+    }
+
+    .journey-step-index {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(30, 30, 30, .06);
+      color: var(--graphite);
+      font-size: .86rem;
+      font-weight: 800;
+    }
+
+    .journey-tab.is-active .journey-step-index {
+      background: var(--orange);
+      color: var(--white);
+    }
+
+    .journey-tab strong {
+      display: block;
+      font-size: .95rem;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }
+
+    .journey-tab span:last-child {
+      color: var(--muted);
+      font-size: .82rem;
+      line-height: 1.35;
+      font-weight: 600;
+    }
+
+    .journey-panels {
+      margin-top: 22px;
+    }
+
+    .journey-panel {
+      display: none;
+    }
+
+    .journey-panel.is-active {
+      display: grid;
+      grid-template-columns: minmax(280px, 370px) minmax(0, 1fr);
+      gap: 26px;
+      align-items: stretch;
+    }
+
+    .journey-copy-card,
+    .journey-visual-card {
+      border-radius: 28px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .journey-copy-card {
+      padding: 30px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .journey-copy-card h3 {
+      margin: 18px 0 10px;
+      font-size: clamp(1.6rem, 2vw, 2.2rem);
+      line-height: 1.05;
+      letter-spacing: -0.055em;
+      font-weight: 800;
+    }
+
+    .journey-copy-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: .98rem;
+      font-weight: 500;
+      line-height: 1.68;
+    }
+
+    .journey-panel-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, .08);
+      color: var(--orange-dark);
+      font-size: .78rem;
+      font-weight: 800;
+    }
+
+    .journey-list {
+      margin: 22px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 12px;
+    }
+
+    .journey-list li {
+      position: relative;
+      padding-left: 18px;
+      color: var(--gray);
+      font-size: .92rem;
+      font-weight: 600;
+      line-height: 1.55;
+    }
+
+    .journey-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: .62em;
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--orange);
+    }
+
+    .journey-panel-note {
+      margin-top: auto;
+      padding: 16px 18px;
+      border-radius: 20px;
+      background: var(--light);
+      border: 1px solid var(--line);
+      color: var(--gray);
+      font-size: .9rem;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .journey-visual-card {
+      padding: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 430px;
+      overflow: hidden;
+    }
+
+    .journey-visual-frame {
+      width: 100%;
+      height: 100%;
+      min-height: 386px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, #fffdfb 0%, #fff 100%);
+      border: 1px solid rgba(30, 30, 30, .06);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.5);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .journey-nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .journey-nav-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .journey-nav-btn {
+      min-height: 48px;
+      padding: 12px 18px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--graphite);
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .18s ease, background-color .18s ease;
+    }
+
+    .journey-nav-btn:hover {
+      background: var(--light);
+      transform: translateY(-1px);
+    }
+
+    .journey-nav-btn.is-primary {
+      background: var(--orange);
+      border-color: transparent;
+      color: var(--white);
+      box-shadow: 0 14px 30px rgba(249, 115, 22, .16);
+    }
+
+    .journey-nav-btn.is-primary:hover {
+      background: var(--orange-dark);
+    }
+
+    .journey-counter {
+      color: var(--gray);
+      font-size: .92rem;
+      font-weight: 800;
+    }
+
+    .journey-restaurant {
+      background:
+        radial-gradient(circle at 18% 14%, rgba(255, 232, 194, .85) 0 0.7rem, transparent 0.75rem),
+        radial-gradient(circle at 48% 12%, rgba(255, 232, 194, .82) 0 0.9rem, transparent 0.95rem),
+        radial-gradient(circle at 78% 15%, rgba(255, 232, 194, .85) 0 0.7rem, transparent 0.75rem),
+        linear-gradient(180deg, #2F211A 0%, #6F442D 45%, #F6E6D6 45%, #F6E6D6 100%);
+    }
+
+    .journey-restaurant::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, transparent 0 8%, rgba(255,255,255,.10) 8% 9%, transparent 9% 20%, rgba(255,255,255,.10) 20% 21%, transparent 21% 33%, rgba(255,255,255,.10) 33% 34%, transparent 34% 46%, rgba(255,255,255,.10) 46% 47%, transparent 47%),
+        radial-gradient(circle at 50% 100%, rgba(249, 115, 22, .18), transparent 44%),
+        linear-gradient(180deg, rgba(255,255,255,.16), transparent 24%);
+      pointer-events: none;
+    }
+
+    .journey-restaurant::after {
+      content: "Restaurante cheio";
+      position: absolute;
+      left: 22px;
+      top: 22px;
+      z-index: 3;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .92);
+      border: 1px solid rgba(30, 30, 30, .06);
+      color: var(--graphite);
+      font-size: .86rem;
+      font-weight: 800;
+      box-shadow: var(--shadow-soft);
+    }
+
+    .restaurant-lights {
+      position: absolute;
+      top: 18px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-evenly;
+      z-index: 1;
+    }
+
+    .restaurant-lights span {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(255,236,196,.95), rgba(255,181,84,.7) 40%, rgba(255,181,84,0) 70%);
+      filter: blur(.3px);
+    }
+
+    .table {
+      position: absolute;
+      width: 146px;
+      height: 72px;
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at 23% 50%, rgba(255, 255, 255, .20) 0 9%, transparent 10%),
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, .16) 0 9%, transparent 10%),
+        radial-gradient(circle at 76% 50%, rgba(255, 255, 255, .20) 0 9%, transparent 10%),
+        linear-gradient(135deg, #7C4A2D, #3D281E);
+      box-shadow: 0 18px 28px rgba(30,30,30,.22);
+    }
+
+    .table.one { left: 44px; top: 120px; }
+    .table.two { right: 58px; top: 132px; }
+    .table.three { left: 132px; bottom: 72px; width: 176px; }
+
+    .table::before,
+    .table::after {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #FACC15;
+      top: 27px;
+      left: 26px;
+      box-shadow: 32px 0 0 #FDBA74, 64px 0 0 #FACC15;
+    }
+
+    .guests {
+      position: absolute;
+      inset: 0;
+    }
+
+    .guest {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background: #FFE8C7;
+      box-shadow: 0 18px 0 4px rgba(31, 41, 55, .62);
+    }
+
+    .g1 { left: 58px; top: 96px; }
+    .g2 { left: 148px; top: 96px; }
+    .g3 { left: 76px; top: 178px; }
+    .g4 { left: 158px; top: 178px; }
+    .g5 { right: 140px; top: 108px; }
+    .g6 { right: 60px; top: 108px; }
+    .g7 { right: 144px; top: 188px; }
+    .g8 { right: 66px; top: 188px; }
+    .g9 { left: 148px; bottom: 128px; }
+    .g10 { left: 236px; bottom: 128px; }
+    .g11 { left: 176px; bottom: 46px; }
+    .g12 { left: 256px; bottom: 46px; }
+
+    .restaurant-overlay {
+      position: absolute;
+      right: 22px;
+      bottom: 22px;
+      width: 226px;
+      padding: 18px;
+      border-radius: 22px;
+      background: rgba(255,255,255,.94);
+      border: 1px solid rgba(30, 30, 30, .06);
+      box-shadow: var(--shadow-soft);
+      z-index: 2;
+    }
+
+    .restaurant-overlay strong {
+      display: block;
+      font-size: 2rem;
+      line-height: 1;
+      letter-spacing: -0.06em;
+    }
+
+    .restaurant-overlay span {
+      display: block;
+      color: var(--muted);
+      font-size: .86rem;
+      font-weight: 700;
+      margin-top: 6px;
+    }
+
+    .restaurant-chart {
+      margin-top: 14px;
+      height: 68px;
+      border-radius: 14px;
+      background:
+        linear-gradient(180deg, rgba(249,115,22,.1), rgba(249,115,22,0)),
+        linear-gradient(135deg, transparent 0 12%, rgba(249,115,22,.15) 12% 13%, transparent 13% 30%, rgba(249,115,22,.15) 30% 31%, transparent 31% 53%, rgba(249,115,22,.15) 53% 54%, transparent 54% 72%, rgba(249,115,22,.15) 72% 73%, transparent 73%),
+        linear-gradient(180deg, #fff, #fff);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .restaurant-chart::after {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 34px;
+      height: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #FDBA74, #F97316 36%, #EA580C);
+      transform: skewX(-18deg);
+    }
+
+    .screen-shell {
+      position: absolute;
+      top: 26px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(390px, calc(100% - 48px));
+      height: calc(100% - 52px);
+      border-radius: 26px;
+      background: #1E1E1E;
+      padding: 10px;
+      box-shadow: 0 26px 40px rgba(30, 30, 30, .22);
+    }
+
+    .screen-inner {
+      height: 100%;
+      border-radius: 20px;
+      background: #FFFFFF;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .screen-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px 12px;
+      font-size: .83rem;
+      font-weight: 800;
+      color: var(--graphite);
+    }
+
+    .screen-topbar .dots {
+      width: 48px;
+      height: 5px;
+      border-radius: 999px;
+      background: #DBDBDB;
+    }
+
+    .preview-menu-layout {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 14px;
+      height: calc(100% - 56px);
+      padding: 0 16px 16px;
+    }
+
+    .preview-menu-sidebar {
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+
+    .preview-menu-sidebar span {
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: #FAFAFA;
+      border: 1px solid #F0F0F0;
+      color: var(--gray);
+      font-size: .76rem;
+      font-weight: 700;
+    }
+
+    .preview-menu-sidebar span.active {
+      background: rgba(249,115,22,.09);
+      color: var(--orange-dark);
+      border-color: rgba(249,115,22,.12);
+    }
+
+    .preview-menu-products {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .preview-product {
+      display: grid;
+      grid-template-columns: 64px 1fr auto;
+      gap: 10px;
+      padding: 12px;
+      border-radius: 18px;
+      background: #FCFCFC;
+      border: 1px solid #F0F0F0;
+      align-items: center;
+    }
+
+    .food-thumb {
+      width: 64px;
+      height: 56px;
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 45% 42%, #FED7AA 0 22%, transparent 23%),
+        linear-gradient(135deg, #F97316, #2D1B12);
+    }
+
+    .preview-product strong,
+    .cart-item strong,
+    .ticket strong {
+      display: block;
+      font-size: .9rem;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }
+
+    .preview-product span,
+    .cart-item span,
+    .ticket span,
+    .timeline-item span {
+      display: block;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .preview-product b,
+    .cart-price,
+    .ticket b {
+      color: var(--orange-dark);
+      font-size: .82rem;
+      font-weight: 800;
+    }
+
+    .cart-layout {
+      padding: 0 18px 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .cart-item {
+      display: grid;
+      grid-template-columns: 54px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid #F0F0F0;
+      background: #FCFCFC;
+    }
+
+    .cart-qty {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(249,115,22,.1);
+      color: var(--orange-dark);
+      font-size: .86rem;
+      font-weight: 800;
+    }
+
+    .cart-summary {
+      padding: 16px;
+      border-radius: 20px;
+      background: #FFF8F2;
+      border: 1px solid rgba(249,115,22,.12);
+      display: grid;
+      gap: 10px;
+    }
+
+    .cart-summary-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--gray);
+      font-size: .85rem;
+      font-weight: 700;
+    }
+
+    .cart-summary-row.total {
+      color: var(--graphite);
+      font-size: 1rem;
+      font-weight: 800;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(30,30,30,.12);
+    }
+
+    .pay-button {
+      min-height: 44px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--orange);
+      color: var(--white);
+      font-size: .88rem;
+      font-weight: 800;
+    }
+
+    .kitchen-layout {
+      padding: 0 18px 18px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .kitchen-tabs {
+      display: inline-flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .kitchen-tabs span {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #F5F5F5;
+      color: var(--gray);
+      font-size: .74rem;
+      font-weight: 800;
+    }
+
+    .kitchen-tabs span.active {
+      background: rgba(249,115,22,.1);
+      color: var(--orange-dark);
+    }
+
+    .ticket-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .ticket {
+      padding: 14px;
+      border-radius: 20px;
+      background: #FCFCFC;
+      border: 1px solid #F0F0F0;
+      box-shadow: 0 10px 22px rgba(30, 30, 30, .04);
+    }
+
+    .ticket-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .ticket-pill {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(249,115,22,.1);
+      color: var(--orange-dark);
+      font-size: .72rem;
+      font-weight: 800;
+    }
+
+    .ticket ul {
+      margin: 0;
+      padding-left: 16px;
+      color: var(--gray);
+      font-size: .8rem;
+      font-weight: 700;
+      display: grid;
+      gap: 5px;
+    }
+
+    .tracking-layout {
+      padding: 0 18px 18px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .tracking-header {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: #FFF8F2;
+      border: 1px solid rgba(249,115,22,.12);
+    }
+
+    .tracking-header strong {
+      display: block;
+      font-size: 1rem;
+      letter-spacing: -0.03em;
+    }
+
+    .tracking-header span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 700;
+    }
+
+    .timeline {
+      position: relative;
+      padding-left: 22px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 8px;
+      top: 8px;
+      bottom: 8px;
+      width: 3px;
+      border-radius: 999px;
+      background: rgba(249,115,22,.18);
+    }
+
+    .timeline-item {
+      position: relative;
+      padding: 14px 14px 14px 16px;
+      border-radius: 18px;
+      border: 1px solid #F0F0F0;
+      background: #FCFCFC;
+    }
+
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -18px;
+      top: 18px;
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: var(--orange);
+      border: 4px solid #FFF8F2;
+      box-shadow: 0 0 0 1px rgba(249,115,22,.2);
+    }
+
+    .timeline-item.pending::before {
+      background: #D1D5DB;
+      border-color: #F8FAFC;
+      box-shadow: 0 0 0 1px rgba(30,30,30,.1);
+    }
+
+    .timeline-item strong {
+      display: block;
+      font-size: .9rem;
+      line-height: 1.15;
+    }
+
+    .happy-scene {
+      background: linear-gradient(180deg, #FFF8F2 0%, #FFFFFF 70%);
+    }
+
+    .happy-panel {
+      position: absolute;
+      inset: 30px;
+      border-radius: 28px;
+      background: radial-gradient(circle at top, rgba(249,115,22,.12), transparent 34%), #FFFFFF;
+      border: 1px solid rgba(30, 30, 30, .06);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      text-align: center;
+      padding: 30px;
+    }
+
+    .avatar {
+      position: relative;
+      width: 114px;
+      height: 114px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #F97316 0%, #EA580C 100%);
+      box-shadow: 0 18px 36px rgba(249,115,22,.22);
+    }
+
+    .avatar::before {
+      content: "";
+      position: absolute;
+      left: 29px;
+      top: 18px;
+      width: 56px;
+      height: 56px;
+      border-radius: 999px;
+      background: #FFE3C2;
+    }
+
+    .avatar::after {
+      content: "";
+      position: absolute;
+      left: 18px;
+      bottom: 12px;
+      width: 78px;
+      height: 42px;
+      border-radius: 40px 40px 22px 22px;
+      background: #FFE3C2;
+    }
+
+    .stars {
+      display: flex;
+      gap: 8px;
+      color: #F59E0B;
+      font-size: 1.28rem;
+      letter-spacing: .08em;
+    }
+
+    .happy-panel h4 {
+      margin: 0;
+      font-size: 1.7rem;
+      line-height: 1.05;
+      letter-spacing: -0.05em;
+    }
+
+    .happy-panel p {
+      margin: 0;
+      max-width: 340px;
+      color: var(--muted);
+      font-size: .95rem;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+
+    .happy-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 6px;
+    }
+
+    .happy-chip {
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #FFF8F2;
+      border: 1px solid rgba(249,115,22,.12);
+      color: var(--orange-dark);
+      font-size: .82rem;
+      font-weight: 800;
+    }
+
+
+    .impact-section {
+      padding-top: 36px;
+    }
+
+    .impact-head {
+      max-width: 900px;
+      margin: 0 auto 26px;
+      text-align: center;
+    }
+
+    .impact-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      color: var(--orange-dark);
+      font-size: .82rem;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .impact-head h2 {
+      margin: 0;
+      color: #0F172A;
+      font-size: clamp(2.25rem, 4.6vw, 4.15rem);
+      line-height: 1.02;
+      letter-spacing: -0.075em;
+      font-weight: 800;
+    }
+
+    .impact-head h2 span {
+      color: var(--orange);
+    }
+
+    .impact-head p {
+      max-width: 760px;
+      margin: 16px auto 0;
+      color: var(--muted);
+      font-size: clamp(.98rem, 1.3vw, 1.12rem);
+      font-weight: 500;
+      line-height: 1.7;
+    }
+
+    .impact-shell {
+      border-radius: 34px;
+      background: linear-gradient(180deg, #FFFFFF, #FBFBFB);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-soft);
+      padding: 28px;
+      overflow: hidden;
+    }
+
+    .impact-toggle {
+      width: min(620px, 100%);
+      margin: 0 auto 22px;
+      padding: 7px;
+      border-radius: 999px;
+      background: #FFFFFF;
+      border: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, .05);
+    }
+
+    .impact-toggle-btn {
+      border: 0;
+      min-height: 48px;
+      border-radius: 999px;
+      background: transparent;
+      color: #0F172A;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-size: .96rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .18s ease, color .18s ease, background .18s ease, box-shadow .18s ease;
+    }
+
+    .impact-toggle-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .impact-toggle-btn.is-active[data-impact-mode="optimization"] {
+      color: #FFFFFF;
+      background: linear-gradient(135deg, #8B5CF6, #5B21B6);
+      box-shadow: 0 16px 28px rgba(91, 33, 182, .20);
+    }
+
+    .impact-toggle-btn.is-active[data-impact-mode="communication"] {
+      color: #FFFFFF;
+      background: linear-gradient(135deg, #22C55E, #047857);
+      box-shadow: 0 16px 28px rgba(4, 120, 87, .18);
+    }
+
+    .impact-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .impact-card {
+      position: relative;
+      min-height: 448px;
+      padding: 28px;
+      border-radius: 30px;
+      border: 1px solid var(--line);
+      background: #FFFFFF;
+      overflow: hidden;
+      transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, opacity .2s ease;
+    }
+
+    .impact-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .94;
+    }
+
+    .impact-card.optimization {
+      border-color: rgba(139, 92, 246, .18);
+    }
+
+    .impact-card.optimization::before {
+      background: radial-gradient(circle at 15% 15%, rgba(139, 92, 246, .16), transparent 32%), linear-gradient(135deg, rgba(139, 92, 246, .08), rgba(255,255,255,0) 48%);
+    }
+
+    .impact-card.communication {
+      border-color: rgba(34, 197, 94, .18);
+    }
+
+    .impact-card.communication::before {
+      background: radial-gradient(circle at 82% 18%, rgba(34, 197, 94, .14), transparent 30%), linear-gradient(135deg, rgba(34, 197, 94, .08), rgba(255,255,255,0) 48%);
+    }
+
+    .impact-card.is-dimmed {
+      opacity: .62;
+      filter: saturate(.82);
+    }
+
+    .impact-card.is-highlighted {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow);
+      opacity: 1;
+      filter: none;
+    }
+
+    .impact-content {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, .92fr) minmax(260px, 1fr);
+      gap: 22px;
+      align-items: center;
+    }
+
+    .impact-icon {
+      width: 54px;
+      height: 54px;
+      border-radius: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      font-size: 1.6rem;
+      font-weight: 800;
+    }
+
+    .optimization .impact-icon {
+      background: rgba(139, 92, 246, .12);
+      color: #6D28D9;
+      border: 1px solid rgba(139, 92, 246, .18);
+    }
+
+    .communication .impact-icon {
+      background: rgba(34, 197, 94, .12);
+      color: #047857;
+      border: 1px solid rgba(34, 197, 94, .18);
+    }
+
+    .impact-card h3 {
+      margin: 0;
+      font-size: clamp(1.55rem, 2vw, 2.05rem);
+      line-height: 1.08;
+      letter-spacing: -0.055em;
+      font-weight: 800;
+      color: #111827;
+    }
+
+    .impact-card p {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: .95rem;
+      font-weight: 500;
+      line-height: 1.65;
+    }
+
+    .impact-list {
+      margin: 22px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 12px;
+    }
+
+    .impact-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      color: #374151;
+      font-size: .92rem;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .impact-list li::before {
+      content: "✓";
+      flex: 0 0 22px;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      font-size: .78rem;
+      font-weight: 800;
+      margin-top: 1px;
+    }
+
+    .optimization .impact-list li::before {
+      background: #7C3AED;
+    }
+
+    .communication .impact-list li::before {
+      background: #16A34A;
+    }
+
+    .impact-result {
+      margin-top: 22px;
+      padding: 14px 16px;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: .92rem;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .impact-result b {
+      font-weight: 800;
+    }
+
+    .optimization .impact-result {
+      background: rgba(139, 92, 246, .08);
+      border: 1px solid rgba(139, 92, 246, .15);
+      color: #3B0764;
+    }
+
+    .communication .impact-result {
+      background: rgba(34, 197, 94, .08);
+      border: 1px solid rgba(34, 197, 94, .15);
+      color: #064E3B;
+    }
+
+    .impact-result-icon {
+      flex: 0 0 42px;
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      font-size: 1.2rem;
+    }
+
+    .optimization .impact-result-icon {
+      background: #7C3AED;
+    }
+
+    .communication .impact-result-icon {
+      background: #16A34A;
+    }
+
+    .impact-visual {
+      position: relative;
+      min-height: 326px;
+    }
+
+    .impact-device {
+      position: absolute;
+      border-radius: 28px;
+      background: #111827;
+      padding: 10px;
+      box-shadow: 0 26px 42px rgba(15, 23, 42, .22);
+    }
+
+    .impact-device.phone {
+      width: 142px;
+      height: 278px;
+      left: 0;
+      bottom: 8px;
+      transform: rotate(-3deg);
+      z-index: 2;
+    }
+
+    .impact-device.tablet {
+      width: 255px;
+      height: 190px;
+      right: 0;
+      top: 28px;
+      border-radius: 24px;
+      transform: rotate(1deg);
+      z-index: 1;
+    }
+
+    .impact-device.promo-phone {
+      width: 168px;
+      height: 312px;
+      right: 62px;
+      top: 4px;
+      z-index: 2;
+    }
+
+    .impact-device-screen {
+      height: 100%;
+      border-radius: 20px;
+      background: #FFFFFF;
+      overflow: hidden;
+      padding: 13px;
+    }
+
+    .impact-device-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      color: #111827;
+      font-size: .74rem;
+      font-weight: 800;
+    }
+
+    .impact-device-pill {
+      width: 38px;
+      height: 5px;
+      border-radius: 999px;
+      background: #E5E7EB;
+    }
+
+    .mini-product,
+    .mini-ticket,
+    .mini-promo-field {
+      border-radius: 12px;
+      background: #F9FAFB;
+      border: 1px solid #F1F5F9;
+    }
+
+    .mini-product {
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 8px;
+      padding: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+
+    .mini-product::before {
+      content: "";
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #F97316, #7C2D12);
+    }
+
+    .mini-line {
+      display: block;
+      height: 6px;
+      border-radius: 999px;
+      background: #CBD5E1;
+      margin-bottom: 6px;
+    }
+
+    .mini-line.short {
+      width: 62%;
+      background: #E5E7EB;
+    }
+
+    .mini-cart-bar {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      min-height: 34px;
+      border-radius: 11px;
+      background: #7C3AED;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .7rem;
+      font-weight: 800;
+    }
+
+    .mini-ticket {
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+
+    .mini-ticket-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: .75rem;
+      font-weight: 800;
+    }
+
+    .mini-status {
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: rgba(249, 115, 22, .12);
+      color: var(--orange-dark);
+      font-size: .65rem;
+      font-weight: 800;
+    }
+
+    .mini-ticket-row {
+      height: 7px;
+      border-radius: 999px;
+      background: #E5E7EB;
+      margin-top: 7px;
+    }
+
+    .impact-people {
+      position: absolute;
+      left: 4px;
+      top: 30px;
+      display: grid;
+      gap: 12px;
+      z-index: 1;
+    }
+
+    .impact-person {
+      width: 48px;
+      height: 48px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #D1FAE5, #FFFFFF);
+      border: 2px solid #FFFFFF;
+      box-shadow: 0 10px 20px rgba(6, 78, 59, .10);
+      position: relative;
+    }
+
+    .impact-person::before {
+      content: "";
+      position: absolute;
+      left: 13px;
+      top: 8px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #FBD38D;
+    }
+
+    .impact-person::after {
+      content: "";
+      position: absolute;
+      left: 10px;
+      bottom: 7px;
+      width: 26px;
+      height: 15px;
+      border-radius: 999px 999px 8px 8px;
+      background: #047857;
+    }
+
+    .impact-connection {
+      position: absolute;
+      left: 48px;
+      top: 54px;
+      width: 250px;
+      height: 130px;
+      border: 2px dashed rgba(34, 197, 94, .46);
+      border-left: 0;
+      border-bottom: 0;
+      border-radius: 0 80px 0 0;
+      z-index: 0;
+    }
+
+    .promo-card-floating {
+      position: absolute;
+      right: 0;
+      bottom: 20px;
+      width: 142px;
+      padding: 14px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #16A34A, #047857);
+      color: #FFFFFF;
+      box-shadow: 0 22px 34px rgba(4, 120, 87, .22);
+      z-index: 3;
+    }
+
+    .promo-card-floating strong {
+      display: block;
+      font-size: .95rem;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }
+
+    .promo-card-floating span {
+      display: block;
+      margin-top: 8px;
+      font-size: 1.25rem;
+      line-height: 1.05;
+      font-weight: 800;
+    }
+
+    .mini-promo-field {
+      height: 34px;
+      margin-top: 10px;
+      background: #FFFFFF;
+    }
+
+    .mini-promo-button {
+      min-height: 36px;
+      margin-top: 12px;
+      border-radius: 12px;
+      background: #16A34A;
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .72rem;
+      font-weight: 800;
+    }
+
+    .impact-bottom {
+      width: min(840px, 100%);
+      margin: 22px auto 0;
+      padding: 16px 22px;
+      border-radius: 20px;
+      background: #FFFFFF;
+      border: 1px solid rgba(249, 115, 22, .18);
+      box-shadow: 0 14px 28px rgba(15, 23, 42, .05);
+      color: #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      text-align: center;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .impact-bottom span {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(249, 115, 22, .08);
+      color: var(--orange);
+      border: 1px solid rgba(249, 115, 22, .16);
+    }
+
+    .impact-bottom b {
+      color: var(--orange);
+    }
+
+    .steps {
+      background: var(--light);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .step-card {
+      padding: 22px 18px;
+      border-radius: 24px;
+      background: var(--white);
+      border: 1px solid var(--line);
+    }
+
+    .step-number {
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+      border-radius: 999px;
+      background: var(--orange);
+      color: var(--white);
+      font-weight: 800;
+    }
+
+    .step-card h3 {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.18;
+      letter-spacing: -0.035em;
+      font-weight: 800;
+    }
+
+    .step-card p {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: .86rem;
+      font-weight: 500;
+      line-height: 1.55;
+    }
+
+    .final-cta {
+      padding: 36px;
+      border-radius: 32px;
+      background: var(--graphite);
+      color: var(--white);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .final-cta h2 {
+      margin: 0;
+      font-size: clamp(1.9rem, 3vw, 3rem);
+      line-height: 1.05;
+      letter-spacing: -0.065em;
+      font-weight: 800;
+    }
+
+    .final-cta p {
+      margin: 12px 0 0;
+      color: rgba(255,255,255,.72);
+      font-weight: 500;
+    }
+
+    .final-cta .btn-primary {
+      box-shadow: none;
+    }
+
+    .final-price {
+      margin-top: 18px;
+      width: fit-content;
+      padding: 11px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .08);
+      border: 1px solid rgba(255, 255, 255, .14);
+      color: rgba(255, 255, 255, .82);
+      font-size: .96rem;
+      font-weight: 700;
+    }
+
+    .final-price strong {
+      color: var(--orange);
+      font-size: 1.18rem;
+      font-weight: 800;
+    }
+
+    .landing-footer {
+      padding: 34px 0;
+      color: var(--gray);
+      font-size: .92rem;
+      font-weight: 500;
+      text-align: center;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+    }
+
+    .landing-footer-links {
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-weight: 800;
+      color: var(--orange-dark);
+    }
+
+    .landing-footer-links a:hover {
+      text-decoration: underline;
+    }
+
+
+    @media (max-width: 1180px) {
+      .impact-content {
+        grid-template-columns: 1fr;
+      }
+
+      .impact-card {
+        min-height: auto;
+      }
+
+      .impact-visual {
+        min-height: 286px;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .impact-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .impact-card.is-dimmed {
+        opacity: 1;
+        filter: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .impact-shell {
+        padding: 18px;
+        border-radius: 26px;
+      }
+
+      .impact-toggle {
+        grid-template-columns: 1fr;
+        border-radius: 22px;
+      }
+
+      .impact-toggle-btn {
+        border-radius: 16px;
+        min-height: 46px;
+      }
+
+      .impact-card {
+        padding: 22px;
+        border-radius: 24px;
+      }
+
+      .impact-visual {
+        min-height: 300px;
+      }
+
+      .impact-device.phone {
+        width: 132px;
+        height: 260px;
+      }
+
+      .impact-device.tablet {
+        width: 210px;
+        height: 168px;
+        right: -8px;
+      }
+
+      .impact-device.promo-phone {
+        right: 32px;
+        width: 154px;
+        height: 292px;
+      }
+
+      .promo-card-floating {
+        width: 126px;
+        right: -4px;
+      }
+
+      .impact-bottom {
+        align-items: flex-start;
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .journey-tabs {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .journey-panel.is-active {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .landing-header {
+        min-height: auto;
+        padding: 16px 0;
+      }
+
+      .landing-nav {
+        display: none;
+      }
+
+      .hero {
+        grid-template-columns: 1fr;
+        gap: 34px;
+        padding: 48px 0;
+      }
+
+      .hero-visual {
+        min-height: 520px;
+      }
+
+      .hero-price-card {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .price-value {
+        justify-content: flex-start;
+      }
+
+      .benefits-grid,
+      .steps-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .final-cta {
+        grid-template-columns: 1fr;
+      }
+
+      .final-cta .btn {
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .journey-wrap {
+        padding: 24px 18px;
+        border-radius: 26px;
+      }
+
+      .journey-desktop {
+        display: none;
+      }
+
+      .journey-mobile {
+        display: block;
+        margin-top: 22px;
+      }
+
+      .journey-mobile-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .journey-mobile-tabs .journey-tab {
+        min-height: 88px;
+      }
+
+      .journey-mobile-panel {
+        display: none;
+      }
+
+      .journey-mobile-panel.is-active {
+        display: block;
+      }
+
+      .journey-mobile-card {
+        margin-top: 16px;
+        padding: 18px;
+        border-radius: 24px;
+        background: var(--white);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow-soft);
+      }
+
+      .journey-mobile-card .journey-visual-card {
+        min-height: 290px;
+        padding: 14px;
+        border-radius: 22px;
+        box-shadow: none;
+      }
+
+      .journey-mobile-card .journey-visual-frame {
+        min-height: 260px;
+      }
+
+      .journey-mobile-card h3 {
+        margin: 14px 0 8px;
+        font-size: 1.46rem;
+        line-height: 1.1;
+        letter-spacing: -0.05em;
+      }
+
+      .journey-mobile-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: .92rem;
+        font-weight: 500;
+        line-height: 1.65;
+      }
+
+      .journey-mobile-card .journey-list {
+        margin-top: 16px;
+      }
+
+      .journey-mobile-card .journey-panel-note {
+        margin-top: 16px;
+      }
+
+      .journey-mobile-nav {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 16px;
+      }
+
+      .journey-mobile-nav .journey-nav-btn {
+        flex: 1;
+      }
+
+      .screen-shell {
+        width: min(340px, calc(100% - 24px));
+      }
+
+      .ticket-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .landing-shell {
+        width: min(100% - 24px, var(--container));
+      }
+
+      .landing-brand img {
+        width: 138px;
+      }
+
+      .hero h1 {
+        font-size: 2.55rem;
+      }
+
+      .hero-actions .btn {
+        width: 100%;
+      }
+
+      .hero-price-card {
+        padding: 18px;
+        border-radius: 20px;
+      }
+
+      .hero-visual {
+        min-height: 490px;
+        border-radius: 28px;
+      }
+
+      .mock-phone {
+        width: 198px;
+        height: 396px;
+        left: 20px;
+        top: 42px;
+      }
+
+      .mock-phone.second {
+        right: 18px;
+        top: 82px;
+      }
+
+      .floating-card {
+        left: 16px;
+        right: 16px;
+        bottom: 18px;
+        grid-template-columns: 1fr;
+      }
+
+      .metric {
+        padding: 14px;
+      }
+
+      .section {
+        padding: 40px 0;
+      }
+
+      .benefit-card,
+      .final-cta {
+        padding: 24px;
+        border-radius: 24px;
+      }
+
+      .final-price {
+        width: 100%;
+      }
+
+      .journey-mobile-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .table.one { left: 14px; top: 114px; }
+      .table.two { right: 16px; top: 126px; }
+      .table.three { left: 80px; bottom: 74px; width: 150px; }
+      .restaurant-overlay {
+        right: 12px;
+        bottom: 12px;
+        width: 180px;
+        padding: 14px;
+      }
+      .restaurant-overlay strong {
+        font-size: 1.5rem;
+      }
+      .g5 { right: 96px; }
+      .g6 { right: 34px; }
+      .g7 { right: 100px; }
+      .g8 { right: 34px; }
+      .g9 { left: 94px; bottom: 126px; }
+      .g10 { left: 168px; bottom: 126px; }
+      .g11 { left: 122px; bottom: 48px; }
+      .g12 { left: 192px; bottom: 48px; }
+      .preview-menu-layout {
+        grid-template-columns: 94px 1fr;
+        gap: 10px;
+      }
+      .preview-product {
+        grid-template-columns: 52px 1fr;
+      }
+      .preview-product b {
+        grid-column: 2;
+        margin-top: 4px;
+      }
+      .food-thumb {
+        width: 52px;
+        height: 50px;
+      }
+      .screen-topbar {
+        padding-inline: 14px;
+      }
+      .preview-menu-layout,
+      .cart-layout,
+      .kitchen-layout,
+      .tracking-layout {
+        padding-inline: 14px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="landing-shell landing-header">
+    <a class="landing-brand" href="{{ url_for('client.home') }}" aria-label="QRTotem">
+      <img src="{{ url_for('static', filename='img/logo-horizontal-light.png') }}" alt="QRTotem">
+    </a>
+
+    <nav class="landing-nav" aria-label="Navegação principal">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="{{ url_for('admin.login') }}">Entrar</a>
+      <a class="nav-cta" href="{{ url_for('client.signup') }}">Começar agora</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="landing-shell hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Autoatendimento por QR Code</span>
+
+        <h1>
+          Organize seus pedidos e mantenha<span> seus clientes sempre por perto</span>
+        </h1>
+
+        <p>
+          Com o QRTotem, seu restaurante ganha mais otimização no dia a dia e cria um canal de comunicação direto com o cliente.
+        </p>
+
+        <div class="hero-price-card">
+          <div>
+            <span class="price-kicker">Plano único</span>
+            <span class="price-title">Preço fixo, simples de entender e feito para restaurantes.</span>
+            <span class="price-subtitle">Sem taxa de cancelamento</span>
+          </div>
+
+          <div class="price-value" aria-label="R$ 199,99 por mês">
+            <small>R$</small>
+            <strong>199,99</strong>
+            <span>/mês</span>
+          </div>
+        </div>
+
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="{{ url_for('client.signup') }}">
+            Começar agora
+            <span aria-hidden="true">→</span>
+          </a>
+
+          <a class="btn btn-secondary" href="{{ url_for('admin.login') }}">
+            Acessar painel
+          </a>
+        </div>
+
+        <div class="hero-note">
+          Já usa o sistema? <a href="{{ url_for('admin.login') }}">Entrar na conta</a>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-hidden="true">
+        <div class="mock-phone">
+          <div class="mock-screen">
+            <div class="mock-top">
+              <span>Cardápio</span>
+              <span class="mock-pill"></span>
+            </div>
+
+            <h3 class="mock-title">Escolha seu pedido</h3>
+
+            <div class="mock-item">
+              <div class="mock-food"></div>
+              <div class="mock-lines">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+
+            <div class="mock-item">
+              <div class="mock-food"></div>
+              <div class="mock-lines">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+
+            <div class="mock-item">
+              <div class="mock-food"></div>
+              <div class="mock-lines">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+
+            <div class="mock-button">Adicionar ao carrinho</div>
+          </div>
+        </div>
+
+        <div class="mock-phone second">
+          <div class="mock-screen">
+            <div class="mock-top">
+              <span>Meu pedido</span>
+              <span class="mock-pill"></span>
+            </div>
+
+            <h3 class="mock-title">Resumo</h3>
+
+            <div class="mock-item">
+              <div class="mock-food"></div>
+              <div class="mock-lines">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+
+            <div class="mock-item">
+              <div class="mock-food"></div>
+              <div class="mock-lines">
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+
+            <div class="mock-total">
+              <span>Total</span>
+              <strong>R$ 80,70</strong>
+            </div>
+
+            <div class="mock-button">Finalizar pedido</div>
+          </div>
+        </div>
+
+        <div class="floating-card">
+          <div class="metric">
+            <strong>+ rápido</strong>
+            <span>pedido direto pelo celular</span>
+          </div>
+
+          <div class="metric">
+            <strong>0 fila</strong>
+            <span>menos espera no atendimento</span>
+          </div>
+
+          <div class="metric">
+            <strong>100%</strong>
+            <span>operação organizada</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="como-funciona" class="landing-shell section journey-section">
+      <div class="section-head">
+        <h2>Veja a experiência do cliente na prática.</h2>
+        <p>
+          
+        </p>
+      </div>
+
+      <div class="journey-wrap" data-journey-root>
+
+        <div class="journey-desktop">
+          <div class="journey-tabs" role="tablist" aria-label="Jornada do cliente com o QRTotem">
+            <button class="journey-tab is-active" type="button" role="tab" aria-selected="true" data-journey-step="0">
+              <span class="journey-step-index">1</span>
+              <strong>Restaurante cheio</strong>
+              <span>Pico de movimento no salão.</span>
+            </button>
+            <button class="journey-tab" type="button" role="tab" aria-selected="false" data-journey-step="1">
+              <span class="journey-step-index">2</span>
+              <strong>Escaneia o QR Code</strong>
+              <span>Abre o cardápio do QRTotem.</span>
+            </button>
+            <button class="journey-tab" type="button" role="tab" aria-selected="false" data-journey-step="2">
+              <span class="journey-step-index">3</span>
+              <strong>Pedido e pagamento</strong>
+              <span>Carrinho e fechamento do pedido.</span>
+            </button>
+            <button class="journey-tab" type="button" role="tab" aria-selected="false" data-journey-step="3">
+              <span class="journey-step-index">4</span>
+              <strong>Cozinha recebe</strong>
+              <span>Pedido cai na tela da cozinha.</span>
+            </button>
+            <button class="journey-tab" type="button" role="tab" aria-selected="false" data-journey-step="4">
+              <span class="journey-step-index">5</span>
+              <strong>Cliente acompanha</strong>
+              <span>Status do pedido em andamento.</span>
+            </button>
+            <button class="journey-tab" type="button" role="tab" aria-selected="false" data-journey-step="5">
+              <span class="journey-step-index">6</span>
+              <strong>Cliente satisfeito</strong>
+              <span>Experiência prática e moderna.</span>
+            </button>
+          </div>
+
+          <div class="journey-panels">
+            <article class="journey-panel is-active" data-journey-panel="0">
+              <div class="journey-copy-card">
+                <span class="journey-panel-badge">Etapa 1 de 6</span>
+                <h3>Restaurante cheio</h3>
+                <p>
+                  Imagine o salão cheio: várias mesas ocupadas, pedidos acontecendo ao mesmo tempo e a operação precisando ser rápida. É exatamente nesse cenário que o QRTotem mais ajuda.
+                </p>
+                <ul class="journey-list">
+                  <li>O cliente já encontra o QR Code na mesa e não precisa esperar o garçom levar cardápio.</li>
+                  <li>Menos fila visual na operação e mais velocidade para o restaurante atender.</li>
+                  <li>O dono entende imediatamente o contexto antes de ver as próximas etapas.</li>
+                </ul>
+                <div class="journey-panel-note">A imagem principal desta etapa mostra um restaurante cheio, com várias pessoas sentadas e a operação em alta demanda.</div>
+              </div>
+
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame journey-restaurant">
+                  <div class="restaurant-lights"><span></span><span></span><span></span><span></span></div>
+                  <div class="table one"></div>
+                  <div class="table two"></div>
+                  <div class="table three"></div>
+                  <div class="guests">
+                    <span class="guest g1"></span><span class="guest g2"></span><span class="guest g3"></span><span class="guest g4"></span>
+                    <span class="guest g5"></span><span class="guest g6"></span><span class="guest g7"></span><span class="guest g8"></span>
+                    <span class="guest g9"></span><span class="guest g10"></span><span class="guest g11"></span><span class="guest g12"></span>
+                  </div>
+                  <div class="restaurant-overlay">
+                    <strong>19 mesas</strong>
+                    <span>ocupadas neste momento</span>
+                    <div class="restaurant-chart"></div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="journey-panel" data-journey-panel="1">
+              <div class="journey-copy-card">
+                <span class="journey-panel-badge">Etapa 2 de 6</span>
+                <h3>Cliente escaneia o QR Code</h3>
+                <p>
+                  Depois de sentar, o cliente aponta a câmera para o QR Code da mesa e abre a página do cardápio do QRTotem. Aqui o dono do restaurante já consegue visualizar como o atendimento começa de forma simples.
+                </p>
+                <ul class="journey-list">
+                  <li>A visualização mostrada no carrossel representa a página inicial do cliente com categorias e itens do cardápio.</li>
+                  <li>O acesso é direto no celular do cliente, sem instalar aplicativo.</li>
+                  <li>Uma boa tela para explicar a experiência digital logo no primeiro contato.</li>
+                </ul>
+                <div class="journey-panel-note">Nesta etapa, a imagem aberta é a tela do cliente do QRTotem: categorias à esquerda e itens do cardápio à direita.</div>
+              </div>
+
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame">
+                  <div class="screen-shell">
+                    <div class="screen-inner">
+                      <div class="screen-topbar">
+                        <span>QRTotem · Cardápio</span>
+                        <span class="dots"></span>
+                      </div>
+                      <div class="preview-menu-layout">
+                        <div class="preview-menu-sidebar">
+                          <span class="active">Destaques</span>
+                          <span>Entradas</span>
+                          <span>Pratos</span>
+                          <span>Bebidas</span>
+                          <span>Sobremesas</span>
+                        </div>
+                        <div class="preview-menu-products">
+                          <div class="preview-product">
+                            <div class="food-thumb"></div>
+                            <div>
+                              <strong>Picanha na chapa</strong>
+                              <span>Serve 1 pessoa</span>
+                            </div>
+                            <b>R$ 89,90</b>
+                          </div>
+                          <div class="preview-product">
+                            <div class="food-thumb"></div>
+                            <div>
+                              <strong>Parmegiana</strong>
+                              <span>Prato principal</span>
+                            </div>
+                            <b>R$ 64,90</b>
+                          </div>
+                          <div class="preview-product">
+                            <div class="food-thumb"></div>
+                            <div>
+                              <strong>Caipirinha clássica</strong>
+                              <span>Bebida</span>
+                            </div>
+                            <b>R$ 19,90</b>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="journey-panel" data-journey-panel="2">
+              <div class="journey-copy-card">
+                <span class="journey-panel-badge">Etapa 3 de 6</span>
+                <h3>Pedido e pagamento</h3>
+                <p>
+                  O cliente escolhe os itens, revisa o carrinho e finaliza o pedido. Essa etapa do carrossel usa uma imagem inspirada na tela de carrinho do QRTotem para deixar o fluxo claro na apresentação.
+                </p>
+                <ul class="journey-list">
+                  <li>Itens aparecem organizados, com quantidade e valores.</li>
+                  <li>O total fica visível e o cliente entende o fluxo de pagamento.</li>
+                  <li>É uma etapa importante para mostrar autonomia e praticidade.</li>
+                </ul>
+                <div class="journey-panel-note">A imagem aberta nesta etapa representa a página de carrinho do QRTotem, com resumo do pedido e botão para pagar.</div>
+              </div>
+
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame">
+                  <div class="screen-shell">
+                    <div class="screen-inner">
+                      <div class="screen-topbar">
+                        <span>Meu pedido</span>
+                        <span class="dots"></span>
+                      </div>
+                      <div class="cart-layout">
+                        <div class="cart-item">
+                          <div class="cart-qty">2x</div>
+                          <div>
+                            <strong>Hambúrguer clássico</strong>
+                            <span>Sem cebola</span>
+                          </div>
+                          <div class="cart-price">R$ 69,80</div>
+                        </div>
+                        <div class="cart-item">
+                          <div class="cart-qty">1x</div>
+                          <div>
+                            <strong>Batata rústica</strong>
+                            <span>Porção individual</span>
+                          </div>
+                          <div class="cart-price">R$ 16,90</div>
+                        </div>
+                        <div class="cart-item">
+                          <div class="cart-qty">1x</div>
+                          <div>
+                            <strong>Refrigerante</strong>
+                            <span>Lata 350 ml</span>
+                          </div>
+                          <div class="cart-price">R$ 7,90</div>
+                        </div>
+                        <div class="cart-summary">
+                          <div class="cart-summary-row"><span>Subtotal</span><strong>R$ 94,60</strong></div>
+                          <div class="cart-summary-row"><span>Taxa</span><strong>R$ 0,00</strong></div>
+                          <div class="cart-summary-row total"><span>Total</span><strong>R$ 94,60</strong></div>
+                          <div class="pay-button">Ir para pagamento</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="journey-panel" data-journey-panel="3">
+              <div class="journey-copy-card">
+                <span class="journey-panel-badge">Etapa 4 de 6</span>
+                <h3>Cozinha recebe o pedido</h3>
+                <p>
+                  Assim que o pedido é confirmado, ele aparece na tela da cozinha. No carrossel, esta etapa foi construída para lembrar a página de cozinha do QRTotem, com pedidos separados e fáceis de acompanhar.
+                </p>
+                <ul class="journey-list">
+                  <li>O time visualiza novos pedidos rapidamente.</li>
+                  <li>As informações aparecem organizadas por mesa e por itens.</li>
+                  <li>O restaurante percebe que o fluxo até a cozinha é automático.</li>
+                </ul>
+                <div class="journey-panel-note">A imagem aberta nesta etapa representa a tela da cozinha do QRTotem, com tickets e status dos pedidos.</div>
+              </div>
+
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame">
+                  <div class="screen-shell">
+                    <div class="screen-inner">
+                      <div class="screen-topbar">
+                        <span>Cozinha · Pedidos ativos</span>
+                        <span class="dots"></span>
+                      </div>
+                      <div class="kitchen-layout">
+                        <div class="kitchen-tabs">
+                          <span class="active">Novos</span>
+                          <span>Preparando</span>
+                          <span>Prontos</span>
+                        </div>
+                        <div class="ticket-grid">
+                          <div class="ticket">
+                            <div class="ticket-top">
+                              <div>
+                                <strong>#1025 · Mesa 12</strong>
+                                <span>12:35</span>
+                              </div>
+                              <span class="ticket-pill">Novo</span>
+                            </div>
+                            <ul>
+                              <li>1x Picanha na chapa</li>
+                              <li>1x Batata rústica</li>
+                              <li>1x Caipirinha</li>
+                            </ul>
+                          </div>
+                          <div class="ticket">
+                            <div class="ticket-top">
+                              <div>
+                                <strong>#1024 · Mesa 07</strong>
+                                <span>12:31</span>
+                              </div>
+                              <span class="ticket-pill">Preparando</span>
+                            </div>
+                            <ul>
+                              <li>2x Hambúrguer clássico</li>
+                              <li>1x Refrigerante</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="journey-panel" data-journey-panel="4">
+              <div class="journey-copy-card">
+                <span class="journey-panel-badge">Etapa 5 de 6</span>
+                <h3>Cliente acompanha o andamento</h3>
+                <p>
+                  Depois de pedir, o cliente pode acompanhar o status do pedido em andamento. A imagem desta etapa foi pensada para lembrar a página “Meus pedidos” do QRTotem.
+                </p>
+                <ul class="journey-list">
+                  <li>O cliente vê em que etapa o pedido está, sem precisar chamar o garçom.</li>
+                  <li>O restaurante reduz ansiedade e dúvidas no salão.</li>
+                  <li>É um diferencial de experiência digital percebido com facilidade.</li>
+                </ul>
+                <div class="journey-panel-note">A imagem aberta nesta etapa representa a tela de pedidos em andamento do QRTotem, com linha do tempo e horários.</div>
+              </div>
+
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame">
+                  <div class="screen-shell">
+                    <div class="screen-inner">
+                      <div class="screen-topbar">
+                        <span>Meus pedidos</span>
+                        <span class="dots"></span>
+                      </div>
+                      <div class="tracking-layout">
+                        <div class="tracking-header">
+                          <strong>Mesa 12 · Pedido #1025</strong>
+                          <span>Acompanhe cada etapa do seu pedido em tempo real.</span>
+                        </div>
+                        <div class="timeline">
+                          <div class="timeline-item">
+                            <strong>Pedido recebido</strong>
+                            <span>12:35</span>
+                          </div>
+                          <div class="timeline-item">
+                            <strong>Em preparo</strong>
+                            <span>12:38</span>
+                          </div>
+                          <div class="timeline-item pending">
+                            <strong>Pronto</strong>
+                            <span>Aguardando conclusão</span>
+                          </div>
+                          <div class="timeline-item pending">
+                            <strong>Entregue na mesa</strong>
+                            <span>Última etapa</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <article class="journey-panel" data-journey-panel="5">
+              <div class="journey-copy-card">
+                <span class="journey-panel-badge">Etapa 6 de 6</span>
+                <h3>Cliente sai satisfeito</h3>
+                <p>
+                  No fim da jornada, o cliente percebe praticidade, menos espera e uma experiência moderna. Essa última etapa fecha o carrossel com uma imagem positiva e simples de entender.
+                </p>
+                <ul class="journey-list">
+                  <li>O restaurante transmite inovação e organização.</li>
+                  <li>Uma boa experiência aumenta a chance de retorno do cliente.</li>
+                  <li>O dono do restaurante entende o impacto do QRTotem do começo ao fim.</li>
+                </ul>
+                <div class="journey-panel-note">A etapa final mantém uma imagem de cliente satisfeito, reforçando praticidade e boa experiência.</div>
+              </div>
+
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame happy-scene">
+                  <div class="happy-panel">
+                    <div class="avatar"></div>
+                    <div class="stars">★ ★ ★ ★ ★</div>
+                    <h4>Experiência rápida e sem filas.</h4>
+                    <p>O cliente agradece a praticidade, acompanha o pedido com facilidade e sai com uma percepção moderna do seu restaurante.</p>
+                    <div class="happy-actions">
+                      <span class="happy-chip">Mais agilidade</span>
+                      <span class="happy-chip">Mais organização</span>
+                      <span class="happy-chip">Mais satisfação</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <div class="journey-nav">
+            <div class="journey-counter" data-journey-counter>Etapa 1 de 6</div>
+            <div class="journey-nav-group">
+              <button class="journey-nav-btn" type="button" data-journey-prev>← Voltar</button>
+              <button class="journey-nav-btn is-primary" type="button" data-journey-next>Próxima etapa →</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="journey-mobile">
+          <div class="journey-mobile-tabs" role="tablist" aria-label="Jornada do cliente no mobile">
+            <button class="journey-tab is-active" type="button" aria-selected="true" data-journey-step="0">
+              <span class="journey-step-index">1</span>
+              <strong>Restaurante cheio</strong>
+              <span>Pico de movimento.</span>
+            </button>
+            <button class="journey-tab" type="button" aria-selected="false" data-journey-step="1">
+              <span class="journey-step-index">2</span>
+              <strong>Escaneia QR Code</strong>
+              <span>Abre o cardápio.</span>
+            </button>
+            <button class="journey-tab" type="button" aria-selected="false" data-journey-step="2">
+              <span class="journey-step-index">3</span>
+              <strong>Pedido e pagamento</strong>
+              <span>Vai ao carrinho.</span>
+            </button>
+            <button class="journey-tab" type="button" aria-selected="false" data-journey-step="3">
+              <span class="journey-step-index">4</span>
+              <strong>Cozinha recebe</strong>
+              <span>Pedido entra na cozinha.</span>
+            </button>
+            <button class="journey-tab" type="button" aria-selected="false" data-journey-step="4">
+              <span class="journey-step-index">5</span>
+              <strong>Cliente acompanha</strong>
+              <span>Status em andamento.</span>
+            </button>
+            <button class="journey-tab" type="button" aria-selected="false" data-journey-step="5">
+              <span class="journey-step-index">6</span>
+              <strong>Cliente satisfeito</strong>
+              <span>Final positivo.</span>
+            </button>
+          </div>
+
+          <article class="journey-mobile-panel is-active" data-journey-panel="0">
+            <div class="journey-mobile-card">
+              <span class="journey-panel-badge">Etapa 1 de 6</span>
+              <h3>Restaurante cheio</h3>
+              <p>Primeiro, o dono visualiza um restaurante cheio. É o cenário ideal para mostrar onde o QRTotem agiliza atendimento e evita gargalos.</p>
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame journey-restaurant">
+                  <div class="restaurant-lights"><span></span><span></span><span></span></div>
+                  <div class="table one"></div>
+                  <div class="table two"></div>
+                  <div class="table three"></div>
+                  <div class="guests">
+                    <span class="guest g1"></span><span class="guest g2"></span><span class="guest g3"></span><span class="guest g4"></span>
+                    <span class="guest g5"></span><span class="guest g6"></span><span class="guest g7"></span><span class="guest g8"></span>
+                    <span class="guest g9"></span><span class="guest g10"></span><span class="guest g11"></span><span class="guest g12"></span>
+                  </div>
+                  <div class="restaurant-overlay"><strong>19 mesas</strong><span>ocupadas</span><div class="restaurant-chart"></div></div>
+                </div>
+              </div>
+              <ul class="journey-list">
+                <li>Mostra alta demanda e necessidade de agilidade.</li>
+                <li>Ajuda a contextualizar o restante do fluxo.</li>
+              </ul>
+              <div class="journey-panel-note">Imagem principal: restaurante cheio de pessoas.</div>
+            </div>
+          </article>
+
+          <article class="journey-mobile-panel" data-journey-panel="1">
+            <div class="journey-mobile-card">
+              <span class="journey-panel-badge">Etapa 2 de 6</span>
+              <h3>Cliente escaneia o QR Code</h3>
+              <p>O cliente abre a página do cardápio do QRTotem diretamente pela câmera do celular.</p>
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame">
+                  <div class="screen-shell">
+                    <div class="screen-inner">
+                      <div class="screen-topbar"><span>QRTotem · Cardápio</span><span class="dots"></span></div>
+                      <div class="preview-menu-layout">
+                        <div class="preview-menu-sidebar">
+                          <span class="active">Destaques</span><span>Entradas</span><span>Pratos</span><span>Bebidas</span>
+                        </div>
+                        <div class="preview-menu-products">
+                          <div class="preview-product"><div class="food-thumb"></div><div><strong>Picanha</strong><span>Prato principal</span></div><b>R$ 89,90</b></div>
+                          <div class="preview-product"><div class="food-thumb"></div><div><strong>Parmegiana</strong><span>Prato principal</span></div><b>R$ 64,90</b></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <ul class="journey-list">
+                <li>Representa a página do cliente do QRTotem.</li>
+                <li>Cardápio organizado e fácil de explorar.</li>
+              </ul>
+              <div class="journey-panel-note">Imagem principal: tela do cardápio do cliente.</div>
+            </div>
+          </article>
+
+          <article class="journey-mobile-panel" data-journey-panel="2">
+            <div class="journey-mobile-card">
+              <span class="journey-panel-badge">Etapa 3 de 6</span>
+              <h3>Pedido e pagamento</h3>
+              <p>O cliente revisa o carrinho e avança para o pagamento com poucos toques.</p>
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame">
+                  <div class="screen-shell">
+                    <div class="screen-inner">
+                      <div class="screen-topbar"><span>Meu pedido</span><span class="dots"></span></div>
+                      <div class="cart-layout">
+                        <div class="cart-item"><div class="cart-qty">2x</div><div><strong>Hambúrguer</strong><span>Sem cebola</span></div><div class="cart-price">R$ 69,80</div></div>
+                        <div class="cart-summary">
+                          <div class="cart-summary-row"><span>Subtotal</span><strong>R$ 94,60</strong></div>
+                          <div class="cart-summary-row total"><span>Total</span><strong>R$ 94,60</strong></div>
+                          <div class="pay-button">Ir para pagamento</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <ul class="journey-list">
+                <li>Representa a tela de carrinho do QRTotem.</li>
+                <li>Resumo claro e ação objetiva para pagar.</li>
+              </ul>
+              <div class="journey-panel-note">Imagem principal: página de carrinho / pagamento.</div>
+            </div>
+          </article>
+
+          <article class="journey-mobile-panel" data-journey-panel="3">
+            <div class="journey-mobile-card">
+              <span class="journey-panel-badge">Etapa 4 de 6</span>
+              <h3>Cozinha recebe</h3>
+              <p>Assim que o pedido é confirmado, ele aparece na tela da cozinha de forma automática.</p>
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame">
+                  <div class="screen-shell">
+                    <div class="screen-inner">
+                      <div class="screen-topbar"><span>Cozinha</span><span class="dots"></span></div>
+                      <div class="kitchen-layout">
+                        <div class="kitchen-tabs"><span class="active">Novos</span><span>Preparando</span></div>
+                        <div class="ticket-grid">
+                          <div class="ticket"><div class="ticket-top"><div><strong>Mesa 12</strong><span>12:35</span></div><span class="ticket-pill">Novo</span></div><ul><li>Picanha</li><li>Batata</li></ul></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <ul class="journey-list">
+                <li>Representa a página da cozinha do QRTotem.</li>
+                <li>Pedido visível e organizado para preparo.</li>
+              </ul>
+              <div class="journey-panel-note">Imagem principal: tela da cozinha.</div>
+            </div>
+          </article>
+
+          <article class="journey-mobile-panel" data-journey-panel="4">
+            <div class="journey-mobile-card">
+              <span class="journey-panel-badge">Etapa 5 de 6</span>
+              <h3>Cliente acompanha o andamento</h3>
+              <p>Depois do envio à cozinha, o cliente acompanha o status do pedido em andamento.</p>
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame">
+                  <div class="screen-shell">
+                    <div class="screen-inner">
+                      <div class="screen-topbar"><span>Meus pedidos</span><span class="dots"></span></div>
+                      <div class="tracking-layout">
+                        <div class="tracking-header"><strong>Pedido #1025</strong><span>Status do pedido em tempo real.</span></div>
+                        <div class="timeline">
+                          <div class="timeline-item"><strong>Pedido recebido</strong><span>12:35</span></div>
+                          <div class="timeline-item"><strong>Em preparo</strong><span>12:38</span></div>
+                          <div class="timeline-item pending"><strong>Pronto</strong><span>Aguardando</span></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <ul class="journey-list">
+                <li>Representa a tela de pedidos em andamento.</li>
+                <li>Reduz dúvidas no salão.</li>
+              </ul>
+              <div class="journey-panel-note">Imagem principal: página “Meus pedidos”.</div>
+            </div>
+          </article>
+
+          <article class="journey-mobile-panel" data-journey-panel="5">
+            <div class="journey-mobile-card">
+              <span class="journey-panel-badge">Etapa 6 de 6</span>
+              <h3>Cliente satisfeito</h3>
+              <p>O fluxo termina com um cliente satisfeito com a praticidade do atendimento.</p>
+              <div class="journey-visual-card">
+                <div class="journey-visual-frame happy-scene">
+                  <div class="happy-panel">
+                    <div class="avatar"></div>
+                    <div class="stars">★ ★ ★ ★ ★</div>
+                    <h4>Mais satisfação</h4>
+                    <p>Uma experiência moderna aumenta a chance de retorno do cliente.</p>
+                  </div>
+                </div>
+              </div>
+              <ul class="journey-list">
+                <li>Mantém a imagem positiva de cliente satisfeito.</li>
+                <li>Fecha o fluxo com uma percepção profissional.</li>
+              </ul>
+              <div class="journey-panel-note">Imagem principal: cliente satisfeito.</div>
+            </div>
+          </article>
+
+          <div class="journey-mobile-nav">
+            <button class="journey-nav-btn" type="button" data-journey-prev>← Voltar</button>
+            <button class="journey-nav-btn is-primary" type="button" data-journey-next>Próxima etapa →</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="ganhos" class="landing-shell section impact-section" data-impact-root>
+      <div class="impact-head">
+        <span class="impact-eyebrow">Dois impactos em uma única ferramenta</span>
+        <h2>Mais organização no atendimento. <span>Mais clientes voltando depois.</span></h2>
+        <p>
+          O QRTotem melhora a operação dentro do restaurante e cria um canal direto para você se comunicar com quem já conhece o seu negócio.
+        </p>
+      </div>
+
+      <div class="impact-shell">
+        <div class="impact-toggle" aria-label="Escolha o principal ganho do QRTotem">
+          <button class="impact-toggle-btn is-active" type="button" data-impact-mode="optimization">
+            <span aria-hidden="true">🚀</span>
+            Otimização do atendimento
+          </button>
+          <button class="impact-toggle-btn" type="button" data-impact-mode="communication">
+            <span aria-hidden="true">📣</span>
+            Comunicação com o cliente
+          </button>
+        </div>
+
+        <div class="impact-grid">
+          <article class="impact-card optimization is-highlighted" data-impact-card="optimization">
+            <div class="impact-content">
+              <div>
+                <div class="impact-icon">🚀</div>
+                <h3>Otimização do atendimento</h3>
+                <p>
+                  Mais agilidade, menos erros e mais controle no dia a dia, principalmente nos horários de pico.
+                </p>
+
+                <ul class="impact-list">
+                  <li>Pode ser usado em conjunto com seu sistema de CRM</li>
+                  <li>Cliente pede direto pelo celular</li>                  
+                  <li>Pedidos organizados por mesa</li>
+                  <li>Cozinha recebe tudo em tempo real</li>
+                  <li>Menos erros e retrabalho</li>
+                  <li>Cliente acompanha o pedido</li>
+                  <li>Mais agilidade mesmo nos horários de pico</li>
+                </ul>
+
+                <div class="impact-result">
+                  <span class="impact-result-icon">↗</span>
+                  <span><b>Resultado:</b> operação mais leve, equipe mais produtiva e clientes mais satisfeitos.</span>
+                </div>
+              </div>
+
+              <div class="impact-visual" aria-hidden="true">
+                <div class="impact-device phone">
+                  <div class="impact-device-screen">
+                    <div class="impact-device-header"><span>Cardápio</span><span class="impact-device-pill"></span></div>
+                    <div class="mini-product"><span><i class="mini-line"></i><i class="mini-line short"></i></span></div>
+                    <div class="mini-product"><span><i class="mini-line"></i><i class="mini-line short"></i></span></div>
+                    <div class="mini-product"><span><i class="mini-line"></i><i class="mini-line short"></i></span></div>
+                    <div class="mini-cart-bar">Ver carrinho</div>
+                  </div>
+                </div>
+
+                <div class="impact-device tablet">
+                  <div class="impact-device-screen">
+                    <div class="impact-device-header"><span>Cozinha</span><span class="impact-device-pill"></span></div>
+                    <div class="mini-ticket">
+                      <div class="mini-ticket-top"><span>Mesa 05</span><span class="mini-status">Em preparo</span></div>
+                      <div class="mini-ticket-row"></div><div class="mini-ticket-row"></div>
+                    </div>
+                    <div class="mini-ticket">
+                      <div class="mini-ticket-top"><span>Mesa 12</span><span class="mini-status">Novo</span></div>
+                      <div class="mini-ticket-row"></div><div class="mini-ticket-row"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="impact-card communication" data-impact-card="communication">
+            <div class="impact-content">
+              <div>
+                <div class="impact-icon">📣</div>
+                <h3>Comunicação com o cliente</h3>
+                <p>
+                  Um canal direto para trazer o cliente de volta ao seu restaurante depois da visita.
+                </p>
+
+                <ul class="impact-list">
+                  <li>Cliente se cadastra para ver promoções</li>
+                  <li>Você cria sua própria base de clientes</li>
+                  <li>Envie promoções e novidades</li>
+                  <li>Comunicação via Email e Whatsapp</li>                  
+                  <li>Movimente horários mais fracos</li>
+                  <li>Cliente deixa o restaurante no radar</li>
+                  <li>Mais retorno e vendas recorrentes</li>
+                </ul>
+
+                <div class="impact-result">
+                  <span class="impact-result-icon">👥</span>
+                  <span><b>Resultado:</b> mais relacionamento, mais frequência e mais clientes retornando.</span>
+                </div>
+              </div>
+
+              <div class="impact-visual" aria-hidden="true">
+                <div class="impact-people">
+                  <span class="impact-person"></span>
+                  <span class="impact-person"></span>
+                  <span class="impact-person"></span>
+                </div>
+                <div class="impact-connection"></div>
+
+                <div class="impact-device promo-phone">
+                  <div class="impact-device-screen">
+                    <div class="impact-device-header"><span>Promoções</span><span class="impact-device-pill"></span></div>
+                    <strong style="display:block;font-size:.92rem;line-height:1.2;margin-top:12px;">Promoções exclusivas</strong>
+                    <p style="margin:8px 0 0;color:#64748B;font-size:.72rem;font-weight:700;line-height:1.4;">Cadastre-se e receba ofertas especiais do restaurante.</p>
+                    <div class="mini-promo-field"></div>
+                    <div class="mini-promo-field"></div>
+                    <div class="mini-promo-button">Quero receber ofertas</div>
+                  </div>
+                </div>
+
+                <div class="promo-card-floating">
+                  <strong>Promoção Especial!</strong>
+                  <span>20% OFF</span>
+                  <small>em pizzas hoje</small>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="impact-bottom">
+          <span aria-hidden="true">★</span>
+          <strong>Atendimento mais eficiente + clientes voltando sempre = <b>mais resultado para o seu restaurante.</b></strong>
+        </div>
+      </div>
+    </section>
+
+    <section id="implantacao" class="steps section">
+      <div class="landing-shell">
+        <div class="section-head">
+          <h2>Comece sua operação em 5 minutos.</h2>
+          <p>
+            Um processo otimizado para colocar seu restaurante em operação rapidamente.
+          </p>
+        </div>
+
+        <div class="steps-grid">
+          <article class="step-card">
+            <span class="step-number">1</span>
+            <h3>Crie sua conta</h3>
+            <p>Faça o cadastro do restaurante e acesse o painel.</p>
+          </article>
+
+          <article class="step-card">
+            <span class="step-number">2</span>
+            <h3>Escaneie seu cardápio físico</h3>
+            <p>Inclua produtos, preços, descrições e categorias.</p>
+          </article>
+
+          <article class="step-card">
+            <span class="step-number">3</span>
+            <h3>Configure mesas</h3>
+            <p>Informe a quantidade de mesas do restaurante.</p>
+          </article>
+
+          <article class="step-card">
+            <span class="step-number">4</span>
+            <h3>Gere QR Codes</h3>
+            <p>Use os QR Codes para direcionar os clientes ao pedido.</p>
+          </article>
+
+          <article class="step-card">
+            <span class="step-number">5</span>
+            <h3>Receba pedidos</h3>
+            <p>Acompanhe os pedidos e envie para a cozinha.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="landing-shell section">
+      <div class="final-cta">
+        <div>
+          <h2>Transforme seu atendimento com uma solução moderna.</h2>
+          <p>
+            Mais organização, mais velocidade e uma experiência mais profissional para seus clientes.
+          </p>
+
+          <div class="final-price">
+            Plano único por <strong>R$ 199,99/mês</strong>
+          </div>
+        </div>
+
+        <a class="btn btn-primary" href="{{ url_for('client.signup') }}">
+          Começar agora
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="landing-shell landing-footer">
+    <span>© QRTotem. Sistema de pedidos por QR Code para restaurantes.</span>
+    <span class="landing-footer-links">
+      <a href="{{ url_for('client.terms_of_use') }}">Termos de Uso</a>
+      <a href="{{ url_for('client.privacy_policy') }}">Política de Privacidade</a>
+    </span>
+  </footer>
+
+  <script>
+    (function () {
+      const root = document.querySelector('[data-journey-root]');
+      if (!root) return;
+
+      const total = 6;
+      let current = 0;
+
+      const tabs = Array.from(root.querySelectorAll('[data-journey-step]'));
+      const panels = Array.from(root.querySelectorAll('.journey-desktop [data-journey-panel]'));
+      const mobilePanels = Array.from(root.querySelectorAll('.journey-mobile [data-journey-panel]'));
+      const counters = Array.from(root.querySelectorAll('[data-journey-counter]'));
+      const prevButtons = Array.from(root.querySelectorAll('[data-journey-prev]'));
+      const nextButtons = Array.from(root.querySelectorAll('[data-journey-next]'));
+
+      function update() {
+        tabs.forEach((tab) => {
+          const isActive = Number(tab.dataset.journeyStep) === current;
+          tab.classList.toggle('is-active', isActive);
+          tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        panels.forEach((panel) => {
+          panel.classList.toggle('is-active', Number(panel.dataset.journeyPanel) === current);
+        });
+
+        mobilePanels.forEach((panel) => {
+          panel.classList.toggle('is-active', Number(panel.dataset.journeyPanel) === current);
+        });
+
+        counters.forEach((counter) => {
+          counter.textContent = `Etapa ${current + 1} de ${total}`;
+        });
+      }
+
+      tabs.forEach((tab) => {
+        const activateTab = () => {
+          current = Number(tab.dataset.journeyStep) || 0;
+          update();
+        };
+
+        tab.addEventListener('click', activateTab);
+        tab.addEventListener('mouseenter', activateTab);
+        tab.addEventListener('focus', activateTab);
+      });
+
+      prevButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          current = (current - 1 + total) % total;
+          update();
+        });
+      });
+
+      nextButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+          current = (current + 1) % total;
+          update();
+        });
+      });
+
+      update();
+    })();
+
+    (function () {
+      const root = document.querySelector('[data-impact-root]');
+      if (!root) return;
+
+      const buttons = Array.from(root.querySelectorAll('[data-impact-mode]'));
+      const cards = Array.from(root.querySelectorAll('[data-impact-card]'));
+      let active = 'optimization';
+      let timer = null;
+
+      function setActive(mode) {
+        active = mode;
+        buttons.forEach((button) => {
+          const isActive = button.dataset.impactMode === mode;
+          button.classList.toggle('is-active', isActive);
+          button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        cards.forEach((card) => {
+          const isActive = card.dataset.impactCard === mode;
+          card.classList.toggle('is-highlighted', isActive);
+          card.classList.toggle('is-dimmed', !isActive);
+        });
+      }
+
+      function startAuto() {
+        stopAuto();
+        timer = window.setInterval(() => {
+          setActive(active === 'optimization' ? 'communication' : 'optimization');
+        }, 4500);
+      }
+
+      function stopAuto() {
+        if (timer) window.clearInterval(timer);
+      }
+
+      buttons.forEach((button) => {
+        const activate = () => {
+          setActive(button.dataset.impactMode);
+          startAuto();
+        };
+        button.addEventListener('mouseenter', activate);
+        button.addEventListener('focus', activate);
+        button.addEventListener('click', activate);
+      });
+
+      cards.forEach((card) => {
+        const activate = () => {
+          setActive(card.dataset.impactCard);
+          startAuto();
+        };
+        card.addEventListener('mouseenter', activate);
+        card.addEventListener('focusin', activate);
+      });
+
+      root.addEventListener('mouseenter', stopAuto);
+      root.addEventListener('mouseleave', startAuto);
+
+      setActive(active);
+      startAuto();
+    })();
+
+  </script>
+</body>
+</html>

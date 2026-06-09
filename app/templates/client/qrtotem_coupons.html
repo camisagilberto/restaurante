@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Meus cupons{% endblock %}
+
+{% block content %}
+{% set client_actions_mode = 'qrtotem_coupons' %}
+{% include 'client/_fixed_actions.html' %}
+
+{% if campaigns %}
+  <section class="section-block">
+    <div class="coupon-trackable-grid">
+      {% for campaign in campaigns %}
+        {% set used_count = campaign['used_count']|int %}
+        {% set total_quantity = campaign['total_quantity']|int %}
+        {% set remaining = total_quantity - used_count if total_quantity > 0 else 999999 %}
+        {% set customer_used = used_by_customer.get(campaign['id']) %}
+        {% set active_claim = active_claims.get(campaign['id']) %}
+        <article class="coupon-trackable-card">
+          <div class="coupon-trackable-head">
+            <div>
+              <p class="eyebrow">{{ 'Cupom de indicação' if campaign['coupon_type'] == 'referral' else ('Cupom do restaurante' if campaign['coupon_type'] == 'restaurant_credit' else 'Benefício QRTotem') }}</p>
+              <h3>{{ campaign['title'] }}</h3>
+            </div>
+            <strong>{{ campaign['value']|currency }}</strong>
+          </div>
+
+          {% if campaign['description'] %}
+            <p class="muted">{{ campaign['description'] }}</p>
+          {% endif %}
+
+          <div class="coupon-rule-list">
+            <span>Valor mínimo: <strong>{{ campaign['min_purchase_amount']|currency }}</strong></span>
+            <span>Uso único por cliente</span>
+            <span>Código válido por {{ code_minutes }} minutos</span>
+          </div>
+
+          {% if customer_used %}
+            <div class="status-callout success">
+              <strong>Cupom já usado</strong>
+              <span>Usado em {{ customer_used['used_at'] }}{% if customer_used['restaurant_name'] %} no restaurante {{ customer_used['restaurant_name'] }}{% endif %}.</span>
+            </div>
+          {% elif active_claim %}
+            <div class="coupon-code-box">
+              <span>Seu código</span>
+              <strong>{{ active_claim['code'] }}</strong>
+              <small>Válido até {{ active_claim['code_expires_at'] }}. Mostre ao atendente.</small>
+            </div>
+          {% elif remaining <= 0 %}
+            <div class="status-callout warning">
+              <strong>Limite atingido</strong>
+              <span>Este cupom não possui mais usos disponíveis.</span>
+            </div>
+          {% else %}
+            <form method="post" action="{{ url_for('client.generate_qrtotem_coupon_code', campaign_id=campaign['id']) }}" data-confirm-coupon-code="Este código terá duração de {{ code_minutes }} minutos. Gere somente se você for fazer o pagamento dentro deste intervalo. Tem certeza que deseja gerar o código agora?">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-primary btn-block">Gerar código numérico</button>
+            </form>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% else %}
+  <section class="panel empty-state">
+    <h3>Nenhum cupom disponível</h3>
+    <p class="muted">Quando houver cupons rastreáveis ativos para você, eles aparecerão aqui.</p>
+  </section>
+{% endif %}
+
+{% if used_history %}
+  <section class="panel">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Histórico individual</p>
+        <h3>Meus usos recentes</h3>
+        <p class="muted">Este histórico aparece somente para o cliente logado nesta conta.</p>
+      </div>
+    </div>
+    <div class="benefit-history-list">
+      {% for item in used_history %}
+        <div class="benefit-history-item">
+          <div>
+            <strong>{{ item['title'] }}</strong>
+            <small>{% if item['restaurant_name'] %}Usado em {{ item['restaurant_name'] }}{% else %}Benefício usado{% endif %}</small>
+          </div>
+          <span>{{ item['used_at'] }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}QRTotem{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/favicon-192.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
+</head>
+
+<body>
+  <a class="skip-link" href="#conteudo-principal">Pular para o conteúdo</a>
+
+  {% set is_admin_session = session.get('admin_logged_in') %}
+  {% set public_flow_endpoints = [
+    'client.restaurant_table_menu',
+    'client.cart',
+    'client.order_history',
+    'client.coupon_entry',
+    'client.coupon_login',
+    'client.coupon_signup',
+    'client.coupon_menu',
+    'client.customer_profile',
+    'client.qrtotem_coupons',
+    'client.submit_qrtotem_referral',
+    'client.generate_qrtotem_coupon_code'
+  ] %}
+  {% set is_public_client_flow = request.endpoint in public_flow_endpoints and session.get('public_client_mode') %}
+  {% set hidden_navigation_endpoints = ['admin.login', 'client.login', 'client.signup'] %}
+  {% set show_navigation = is_admin_session and (not is_public_client_flow) and request.endpoint not in hidden_navigation_endpoints %}
+  {% set restaurant_service_mode = session.get('restaurant_service_mode', 'full_order_payment') %}
+  {% set show_kitchen_navigation = restaurant_service_mode != 'digital_menu' %}
+
+  {% set client_table = session.get('current_table') or 1 %}
+  {% set client_token = session.get('client_restaurant_token') or session.get('restaurant_public_token') %}
+
+  {% if is_admin_session %}
+    {% set client_order_url = url_for('client.client_mirror') %}
+  {% elif client_token %}
+    {% set client_order_url = url_for('client.restaurant_table_menu', public_token=client_token, table_number=client_table, qr=1) %}
+  {% else %}
+    {% set client_order_url = url_for('client.table_menu', table_number=client_table) %}
+  {% endif %}
+
+  <div class="app-layout {% if not show_navigation %}public-client-layout{% endif %}">
+    {% if show_navigation %}
+      <aside class="app-sidebar" aria-label="Menu lateral">
+        <a class="sidebar-brand" href="{{ url_for('client.home') }}" aria-label="Ir para a página inicial">
+          <img src="{{ url_for('static', filename='img/logo-horizontal-dark.png') }}" alt="QRTotem">
+        </a>
+
+        <nav class="sidebar-nav sidebar-nav--grouped" aria-label="Menu principal do restaurante" data-nav-accordion>
+          <details class="sidebar-group">
+            <summary><span class="nav-icon" aria-hidden="true">🍽️</span><span>Início</span></summary>
+            <div class="sidebar-group-links">
+              <a href="{{ url_for('admin.products') }}"><span class="nav-icon" aria-hidden="true">▦</span><span>Produtos</span></a>
+              <a href="{{ url_for('client.tables_setup') }}"><span class="nav-icon" aria-hidden="true">▣</span><span>Mesas / QR Codes</span></a>
+            </div>
+          </details>
+
+          <details class="sidebar-group">
+            <summary><span class="nav-icon" aria-hidden="true">🏠</span><span>Atendimento</span></summary>
+            <div class="sidebar-group-links">
+              <a href="{{ client_order_url }}"><span class="nav-icon" aria-hidden="true">📱</span><span>Tela do cliente</span></a>
+              <a href="{{ url_for('admin.attendant_orders') }}"><span class="nav-icon" aria-hidden="true">🧾</span><span>Atendente</span></a>
+              {% if show_kitchen_navigation %}
+                <a href="{{ url_for('kitchen.orders') }}"><span class="nav-icon" aria-hidden="true">👨‍🍳</span><span>Cozinha</span></a>
+              {% endif %}
+            </div>
+          </details>
+
+          <details class="sidebar-group">
+            <summary><span class="nav-icon" aria-hidden="true">🎟️</span><span>Cupons</span></summary>
+            <div class="sidebar-group-links">
+              <a href="{{ url_for('admin.coupons') }}"><span class="nav-icon" aria-hidden="true">🎁</span><span>Promoções</span></a>
+              <a href="{{ url_for('admin.restaurant_qrtotem_coupons') }}"><span class="nav-icon" aria-hidden="true">%</span><span>Benefícios QRTotem</span></a>
+              <a href="{{ url_for('admin.validate_qrtotem_coupon_code') }}"><span class="nav-icon" aria-hidden="true">#</span><span>Validar cupom</span></a>
+            </div>
+          </details>
+
+          <details class="sidebar-group">
+            <summary><span class="nav-icon" aria-hidden="true">⚙️</span><span>Conta</span></summary>
+            <div class="sidebar-group-links">
+              <a href="{{ url_for('client.profile') }}"><span class="nav-icon" aria-hidden="true">👤</span><span>Perfil / Cadastro</span></a>
+              <a href="{{ url_for('client.logout') }}"><span class="nav-icon" aria-hidden="true">↩</span><span>Sair</span></a>
+            </div>
+          </details>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="sidebar-caption">Sistema de pedidos</span>
+          <strong>QR Code, cardápio e promoções em um só lugar</strong>
+        </div>
+      </aside>
+    {% endif %}
+
+    <div class="app-main">
+      <header class="app-header">
+        <a class="brand-area" href="{{ url_for('client.home') }}" aria-label="Ir para a página inicial">
+          <span class="brand-logo">
+            <img src="{{ url_for('static', filename='img/logo-icon-light.png') }}" alt="">
+          </span>
+
+          <span class="brand-text">
+            <strong class="brand-title">QRTotem</strong>
+            <span class="brand-subtitle">Sistema de pedidos</span>
+          </span>
+        </a>
+
+        {% if show_navigation %}
+          <nav class="app-nav app-nav--grouped" aria-label="Menu principal do restaurante" data-nav-accordion>
+            <details class="top-nav-group">
+              <summary>Início</summary>
+              <div>
+                <a href="{{ url_for('admin.products') }}">Produtos</a>
+                <a href="{{ url_for('client.tables_setup') }}">Mesas</a>
+              </div>
+            </details>
+
+            <details class="top-nav-group">
+              <summary>Atendimento</summary>
+              <div>
+                <a href="{{ client_order_url }}">Cliente</a>
+                <a href="{{ url_for('admin.attendant_orders') }}">Atendente</a>
+                {% if show_kitchen_navigation %}<a href="{{ url_for('kitchen.orders') }}">Cozinha</a>{% endif %}
+              </div>
+            </details>
+
+            <details class="top-nav-group">
+              <summary>Cupons</summary>
+              <div>
+                <a href="{{ url_for('admin.coupons') }}">Promoções</a>
+                <a href="{{ url_for('admin.restaurant_qrtotem_coupons') }}">Benefícios QRTotem</a>
+                <a href="{{ url_for('admin.validate_qrtotem_coupon_code') }}">Validar cupom</a>
+              </div>
+            </details>
+
+            <details class="top-nav-group">
+              <summary>Conta</summary>
+              <div>
+                <a href="{{ url_for('client.profile') }}">Perfil</a>
+                <a href="{{ url_for('client.logout') }}">Sair</a>
+              </div>
+            </details>
+          </nav>
+        {% endif %}
+      </header>
+
+      {% if show_navigation and qrtotem_restaurant_is_active == 0 %}
+        <div class="inactive-owner-banner" role="alert">
+          <strong>Seu restaurante está inativo</strong>
+          <span>Seus clientes não terão acesso à plataforma. Se já realizou a mensalidade, contate a equipe QRTotem.</span>
+        </div>
+      {% endif %}
+
+      {% include 'partials/messages.html' %}
+
+      <main id="conteudo-principal" class="content-grid">
+        {% block content %}{% endblock %}
+      </main>
+
+      <footer class="app-legal-footer">
+        <span>QRTotem — sistema em fase de teste.</span>
+        <a href="{{ url_for('client.terms_of_use') }}">Termos de Uso</a>
+        <a href="{{ url_for('client.privacy_policy') }}">Política de Privacidade</a>
+      </footer>
+    </div>
+  </div>
+</body>
+</html>
