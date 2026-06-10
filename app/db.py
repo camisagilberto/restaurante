@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS product_addons (
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS product_flavors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS orders (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     restaurant_id INTEGER,
@@ -655,6 +666,28 @@ def _ensure_product_addons(db: sqlite3.Connection) -> None:
     _ensure_column(db, 'product_addons', 'sort_order INTEGER NOT NULL DEFAULT 0')
     _ensure_column(db, 'product_addons', 'created_at TEXT')
     _ensure_column(db, 'product_addons', 'updated_at TEXT')
+
+
+def _ensure_product_flavors(db: sqlite3.Connection) -> None:
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS product_flavors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+    """)
+
+    _ensure_column(db, 'product_flavors', 'product_id INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'product_flavors', "label TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'product_flavors', 'active INTEGER NOT NULL DEFAULT 1')
+    _ensure_column(db, 'product_flavors', 'sort_order INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'product_flavors', 'created_at TEXT')
+    _ensure_column(db, 'product_flavors', 'updated_at TEXT')
 
 
 def _migrate_customer_coupon_users(db: sqlite3.Connection) -> None:
@@ -1258,6 +1291,14 @@ def _create_indexes(db: sqlite3.Connection) -> None:
                 'CREATE INDEX IF NOT EXISTS idx_product_addons_product_active_sort ON product_addons(product_id, active, sort_order)'
             )
 
+    if _table_exists(db, 'product_flavors'):
+        columns = _table_info(db, 'product_flavors')
+
+        if {'product_id', 'active', 'sort_order'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_product_flavors_product_active_sort ON product_flavors(product_id, active, sort_order)'
+            )
+
     if _table_exists(db, 'customer_coupon_users'):
         columns = _table_info(db, 'customer_coupon_users')
 
@@ -1395,6 +1436,7 @@ def migrate_schema(db: sqlite3.Connection) -> None:
     _migrate_restaurant_profiles(db)
     _migrate_products(db)
     _ensure_product_addons(db)
+    _ensure_product_flavors(db)
     _migrate_customer_coupon_users(db)
     _ensure_coupon_redemptions(db)
     _ensure_qrtotem_coupon_tables(db)
