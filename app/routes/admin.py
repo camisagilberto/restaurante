@@ -8,7 +8,7 @@ from ..db import get_db
 from ..errors import ValidationError
 from ..security import csrf_token, login_required
 from ..services.auth_service import authenticate_admin, verify_manager_password
-from ..services.catalog_service import create_product, delete_product, get_product, list_products, toggle_product, update_product
+from ..services.catalog_service import create_product, delete_product, delete_products_by_category, get_product, list_products, toggle_product, update_product
 from ..services.order_service import (
     approve_attendant_order,
     get_attendant_orders_signature,
@@ -312,6 +312,17 @@ def products():
 
     products = list_products(db, restaurant_id, active_only=False, query=query or None, kind='menu')
     active_count = sum(1 for p in products if p['active'])
+    category_summary = []
+    seen_categories = set()
+    for product in products:
+        category = product['category']
+        if category in seen_categories:
+            continue
+        seen_categories.add(category)
+        category_summary.append({
+            'name': category,
+            'count': sum(1 for item in products if item['category'] == category),
+        })
     profile = _profile_context(db)
 
     return render_template(
@@ -319,6 +330,7 @@ def products():
         products=products,
         query=query,
         active_count=active_count,
+        category_summary=category_summary,
         profile=profile,
         csrf=csrf_token(),
     )
@@ -393,6 +405,31 @@ def delete_product_route(product_id):
 
     removed, message = delete_product(db, product_id, restaurant_id, kind='menu')
     flash(message, 'success' if removed else 'warning')
+    return redirect(url_for('admin.products'))
+
+
+@admin_bp.route('/produtos/categoria/excluir', methods=['POST'])
+@login_required
+def delete_products_by_category_route():
+    db = get_db()
+    restaurant_id = _restaurant_id(db)
+    category = normalize_text(request.form.get('category'))
+
+    if not restaurant_id:
+        flash('Perfil do restaurante não encontrado.', 'error')
+        return redirect(url_for('client.signup'))
+
+    manager_password = str(request.form.get('manager_password') or '').strip()
+    if not verify_manager_password(db, manager_password, admin_id=session.get('admin_id')):
+        flash('Senha do usuário inválida. Categoria não excluída.', 'error')
+        return redirect(url_for('admin.products'))
+
+    try:
+        _deleted, _deactivated, message = delete_products_by_category(db, restaurant_id, category, kind='menu')
+        flash(message, 'success')
+    except ValidationError as exc:
+        flash(str(exc), 'error')
+
     return redirect(url_for('admin.products'))
 
 
