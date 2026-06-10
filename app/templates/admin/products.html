@@ -81,6 +81,26 @@
     </form>
   </div>
 
+
+  {% if category_summary %}
+    <div class="category-delete-grid">
+      {% for category in category_summary %}
+        <div class="category-delete-card">
+          <div>
+            <strong>{{ category.name }}</strong>
+            <p class="muted">{{ category.count }} produto(s)</p>
+          </div>
+          <form method="post" action="{{ url_for('admin.delete_products_by_category_route') }}" data-password-confirm="Digite a senha do usuário para excluir todos os produtos desta categoria.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="category" value="{{ category.name }}">
+            <input type="hidden" name="manager_password" value="">
+            <button class="btn btn-danger btn-sm" type="submit">Excluir categoria</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <div class="admin-list">
     {% for product in products %}
       <article class="admin-row {% if not product['active'] %}is-muted{% endif %}">
