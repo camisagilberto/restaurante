@@ -1,179 +1,1504 @@
-<!doctype html>
-<html lang="pt-br">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#FFFFFF">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>{% block title %}QRTotem{% endblock %}</title>
+from __future__ import annotations
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+import os
+import re
+import secrets
+import sqlite3
+from datetime import datetime
+from pathlib import Path
 
-  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/favicon-192.png') }}">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-  <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
-</head>
+from flask import current_app, g
+from werkzeug.security import generate_password_hash
 
-<body>
-  <a class="skip-link" href="#conteudo-principal">Pular para o conteúdo</a>
+SCHEMA_SQL = '''
+PRAGMA foreign_keys = ON;
 
-  {% set is_admin_session = session.get('admin_logged_in') %}
-  {% set public_flow_endpoints = [
-    'client.restaurant_table_menu',
-    'client.cart',
-    'client.order_history',
-    'client.coupon_entry',
-    'client.coupon_login',
-    'client.coupon_signup',
-    'client.coupon_menu',
-    'client.customer_profile',
-    'client.qrtotem_coupons',
-    'client.submit_qrtotem_referral',
-    'client.generate_qrtotem_coupon_code'
-  ] %}
-  {% set is_public_client_flow = request.endpoint in public_flow_endpoints and session.get('public_client_mode') %}
-  {% set hidden_navigation_endpoints = ['admin.login', 'client.login', 'client.signup', 'client.privacy_policy', 'client.terms_of_use'] %}
-  {% set show_navigation = is_admin_session and (not is_public_client_flow) and request.endpoint not in hidden_navigation_endpoints %}
-  {% set restaurant_service_mode = session.get('restaurant_service_mode', 'full_order_payment') %}
-  {% set show_kitchen_navigation = restaurant_service_mode != 'digital_menu' %}
+CREATE TABLE IF NOT EXISTS admins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    kitchen_password_hash TEXT,
+    reset_token_hash TEXT,
+    reset_token_expires_at TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
-  {% set client_table = session.get('current_table') or 1 %}
-  {% set client_token = session.get('client_restaurant_token') or session.get('restaurant_public_token') %}
+CREATE TABLE IF NOT EXISTS restaurant_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id INTEGER NOT NULL UNIQUE,
+    owner_name TEXT NOT NULL,
+    age INTEGER NOT NULL,
+    email TEXT NOT NULL,
+    restaurant_name TEXT NOT NULL,
+    cnpj TEXT NOT NULL DEFAULT '',
+    restaurant_address TEXT NOT NULL,
+    cell_phone TEXT NOT NULL DEFAULT '',
+    order_payment_mode TEXT NOT NULL DEFAULT 'pay_after',
+    service_mode TEXT NOT NULL DEFAULT 'full_order_payment',
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    table_count INTEGER NOT NULL DEFAULT 0,    
+    public_token TEXT,
+    slug TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+);
 
-  {% if is_admin_session %}
-    {% set client_order_url = url_for('client.client_mirror') %}
-  {% elif client_token %}
-    {% set client_order_url = url_for('client.restaurant_table_menu', public_token=client_token, table_number=client_table, qr=1) %}
-  {% else %}
-    {% set client_order_url = url_for('client.table_menu', table_number=client_table) %}
-  {% endif %}
+CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER,
+    name TEXT NOT NULL,
+    description TEXT,
+    price REAL NOT NULL CHECK (price >= 0),
+    category TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL DEFAULT 'menu' CHECK (kind IN ('menu', 'coupon')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
-  <div class="app-layout {% if not show_navigation %}public-client-layout{% endif %}">
-    {% if show_navigation %}
-      <aside class="app-sidebar" aria-label="Menu lateral">
-        <a class="sidebar-brand" href="{{ url_for('client.home') }}" aria-label="Ir para a página inicial">
-          <img src="{{ url_for('static', filename='img/logo-horizontal-dark.png') }}" alt="QRTotem">
-        </a>
+CREATE TABLE IF NOT EXISTS product_addons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    price REAL NOT NULL CHECK (price >= 0),
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+);
 
-        <nav class="sidebar-nav sidebar-nav--grouped" aria-label="Menu principal do restaurante" data-nav-accordion>
-          <details class="sidebar-group">
-            <summary><span class="nav-icon" aria-hidden="true">🍽️</span><span>Início</span></summary>
-            <div class="sidebar-group-links">
-              <a href="{{ url_for('admin.products') }}"><span class="nav-icon" aria-hidden="true">▦</span><span>Produtos</span></a>
-              <a href="{{ url_for('client.tables_setup') }}"><span class="nav-icon" aria-hidden="true">▣</span><span>Mesas / QR Codes</span></a>
-            </div>
-          </details>
+CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER,
+    table_number TEXT NOT NULL,
+    customer_name TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'novo',
+    notes TEXT,
+    total_amount REAL NOT NULL DEFAULT 0,
+    payment_required INTEGER NOT NULL DEFAULT 0 CHECK (payment_required IN (0, 1)),
+    payment_status TEXT NOT NULL DEFAULT 'not_required',
+    payment_provider TEXT NOT NULL DEFAULT '',
+    payment_external_id TEXT NOT NULL DEFAULT '',
+    payment_external_reference TEXT NOT NULL DEFAULT '',
+    payment_qr_code TEXT NOT NULL DEFAULT '',
+    payment_qr_code_base64 TEXT NOT NULL DEFAULT '',
+    payment_ticket_url TEXT NOT NULL DEFAULT '',
+    payment_created_at TEXT,
+    payment_approved_at TEXT,
+    payment_expires_at TEXT,
+    payment_error TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (status IN ('novo', 'preparando', 'pronto', 'entregue', 'cancelado')),
+    CHECK (payment_status IN ('not_required', 'pending', 'approved', 'rejected', 'cancelled', 'expired', 'error'))
+);
 
-          <details class="sidebar-group">
-            <summary><span class="nav-icon" aria-hidden="true">🏠</span><span>Atendimento</span></summary>
-            <div class="sidebar-group-links">
-              <a href="{{ client_order_url }}"><span class="nav-icon" aria-hidden="true">📱</span><span>Tela do cliente</span></a>
-              <a href="{{ url_for('admin.attendant_orders') }}"><span class="nav-icon" aria-hidden="true">🧾</span><span>Atendente</span></a>
-              {% if show_kitchen_navigation %}
-                <a href="{{ url_for('kitchen.orders') }}"><span class="nav-icon" aria-hidden="true">👨‍🍳</span><span>Cozinha</span></a>
-              {% endif %}
-            </div>
-          </details>
+CREATE TABLE IF NOT EXISTS restaurant_payment_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'mercadopago',
+    provider_user_id TEXT NOT NULL DEFAULT '',
+    access_token_encrypted TEXT NOT NULL DEFAULT '',
+    refresh_token_encrypted TEXT NOT NULL DEFAULT '',
+    token_expires_at TEXT,
+    public_key TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'not_connected',
+    connected_at TEXT,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_error TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE,
+    UNIQUE (restaurant_id, provider),
+    CHECK (status IN ('not_connected', 'connected', 'error', 'disabled'))
+);
 
-          <details class="sidebar-group">
-            <summary><span class="nav-icon" aria-hidden="true">🎟️</span><span>Cupons</span></summary>
-            <div class="sidebar-group-links">
-              <a href="{{ url_for('admin.coupons') }}"><span class="nav-icon" aria-hidden="true">🎁</span><span>Promoções</span></a>
-              <a href="{{ url_for('admin.restaurant_qrtotem_coupons') }}"><span class="nav-icon" aria-hidden="true">%</span><span>Benefícios QRTotem</span></a>
-              <a href="{{ url_for('admin.validate_qrtotem_coupon_code') }}"><span class="nav-icon" aria-hidden="true">#</span><span>Validar cupom</span></a>
-            </div>
-          </details>
+CREATE TABLE IF NOT EXISTS customer_coupon_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    username TEXT NOT NULL,
+    cell_phone TEXT NOT NULL,
+    email TEXT NOT NULL,
+    cep TEXT NOT NULL,
+    receive_whatsapp INTEGER NOT NULL DEFAULT 0 CHECK (receive_whatsapp IN (0, 1)),
+    receive_email INTEGER NOT NULL DEFAULT 0 CHECK (receive_email IN (0, 1)),
+    radar_enabled INTEGER NOT NULL DEFAULT 0 CHECK (radar_enabled IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE,
+    UNIQUE (restaurant_id, username)
+);
 
-          <details class="sidebar-group">
-            <summary><span class="nav-icon" aria-hidden="true">⚙️</span><span>Conta</span></summary>
-            <div class="sidebar-group-links">
-              <a href="{{ url_for('client.profile') }}"><span class="nav-icon" aria-hidden="true">👤</span><span>Perfil / Cadastro</span></a>
-              <a href="{{ url_for('client.logout') }}"><span class="nav-icon" aria-hidden="true">↩</span><span>Sair</span></a>
-            </div>
-          </details>
-        </nav>
+CREATE TABLE IF NOT EXISTS coupon_redemptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER NOT NULL,
+    coupon_id INTEGER NOT NULL,
+    customer_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'reserved',
+    code TEXT NOT NULL DEFAULT '',
+    reserved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TEXT NOT NULL,
+    code_generated_at TEXT,
+    code_expires_at TEXT,
+    used_at TEXT,
+    validated_by_admin_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE,
+    FOREIGN KEY (coupon_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customer_coupon_users(id) ON DELETE CASCADE,
+    FOREIGN KEY (validated_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+    CHECK (status IN ('reserved', 'code_generated', 'used', 'expired', 'cancelled'))
+);
 
-        <div class="sidebar-footer">
-          <span class="sidebar-caption">Sistema de pedidos</span>
-          <strong>QR Code, cardápio e promoções em um só lugar</strong>
-        </div>
-      </aside>
-    {% endif %}
 
-    <div class="app-main">
-      <header class="app-header">
-        <a class="brand-area" href="{{ url_for('client.home') }}" aria-label="Ir para a página inicial">
-          <span class="brand-logo">
-            <img src="{{ url_for('static', filename='img/logo-icon-light.png') }}" alt="">
-          </span>
+CREATE TABLE IF NOT EXISTS qrtotem_coupon_campaigns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    coupon_type TEXT NOT NULL DEFAULT 'global',
+    value REAL NOT NULL CHECK (value > 0),
+    min_purchase_amount REAL NOT NULL CHECK (min_purchase_amount > 0),
+    total_quantity INTEGER NOT NULL DEFAULT 0 CHECK (total_quantity >= 0),
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    restaurant_id INTEGER,
+    credit_allocation_id INTEGER,
+    target_customer_id INTEGER,
+    target_customer_email TEXT NOT NULL DEFAULT '',
+    target_customer_name TEXT NOT NULL DEFAULT '',
+    referral_id INTEGER,
+    starts_at TEXT,
+    ends_at TEXT,
+    expires_at TEXT,
+    created_by TEXT NOT NULL DEFAULT 'owner',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (coupon_type IN ('global', 'referral', 'restaurant_credit'))
+);
 
-          <span class="brand-text">
-            <strong class="brand-title">QRTotem</strong>
-            <span class="brand-subtitle">Sistema de pedidos</span>
-          </span>
-        </a>
+CREATE TABLE IF NOT EXISTS qrtotem_coupon_redemptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER NOT NULL,
+    customer_id INTEGER,
+    customer_name TEXT NOT NULL DEFAULT '',
+    customer_email TEXT NOT NULL DEFAULT '',
+    customer_username TEXT NOT NULL DEFAULT '',
+    generated_restaurant_id INTEGER,
+    used_restaurant_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'code_generated',
+    code TEXT NOT NULL DEFAULT '',
+    code_generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    code_expires_at TEXT NOT NULL,
+    used_at TEXT,
+    validated_by_admin_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (campaign_id) REFERENCES qrtotem_coupon_campaigns(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customer_coupon_users(id) ON DELETE SET NULL,
+    FOREIGN KEY (generated_restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE SET NULL,
+    FOREIGN KEY (used_restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE SET NULL,
+    FOREIGN KEY (validated_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+    CHECK (status IN ('code_generated', 'used', 'expired', 'cancelled'))
+);
 
-        {% if show_navigation %}
-          <nav class="app-nav app-nav--grouped" aria-label="Menu principal do restaurante" data-nav-accordion>
-            <details class="top-nav-group">
-              <summary>Início</summary>
-              <div>
-                <a href="{{ url_for('admin.products') }}">Produtos</a>
-                <a href="{{ url_for('client.tables_setup') }}">Mesas</a>
-              </div>
-            </details>
 
-            <details class="top-nav-group">
-              <summary>Atendimento</summary>
-              <div>
-                <a href="{{ client_order_url }}">Cliente</a>
-                <a href="{{ url_for('admin.attendant_orders') }}">Atendente</a>
-                {% if show_kitchen_navigation %}<a href="{{ url_for('kitchen.orders') }}">Cozinha</a>{% endif %}
-              </div>
-            </details>
+CREATE TABLE IF NOT EXISTS qrtotem_restaurant_credit_distributions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    amount_per_restaurant REAL NOT NULL CHECK (amount_per_restaurant > 0),
+    validity_days INTEGER NOT NULL DEFAULT 30 CHECK (validity_days > 0),
+    expires_at TEXT NOT NULL,
+    active_restaurants_count INTEGER NOT NULL DEFAULT 0,
+    inactive_restaurants_count INTEGER NOT NULL DEFAULT 0,
+    total_credit_amount REAL NOT NULL DEFAULT 0,
+    created_by TEXT NOT NULL DEFAULT 'owner',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
-            <details class="top-nav-group">
-              <summary>Cupons</summary>
-              <div>
-                <a href="{{ url_for('admin.coupons') }}">Promoções</a>
-                <a href="{{ url_for('admin.restaurant_qrtotem_coupons') }}">Benefícios QRTotem</a>
-                <a href="{{ url_for('admin.validate_qrtotem_coupon_code') }}">Validar cupom</a>
-              </div>
-            </details>
+CREATE TABLE IF NOT EXISTS qrtotem_restaurant_credit_allocations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    distribution_id INTEGER NOT NULL,
+    restaurant_id INTEGER NOT NULL,
+    restaurant_name_snapshot TEXT NOT NULL DEFAULT '',
+    owner_name_snapshot TEXT NOT NULL DEFAULT '',
+    email_snapshot TEXT NOT NULL DEFAULT '',
+    restaurant_was_active INTEGER NOT NULL DEFAULT 0 CHECK (restaurant_was_active IN (0, 1)),
+    status TEXT NOT NULL DEFAULT 'not_received',
+    initial_amount REAL NOT NULL DEFAULT 0 CHECK (initial_amount >= 0),
+    allocated_amount REAL NOT NULL DEFAULT 0 CHECK (allocated_amount >= 0),
+    expires_at TEXT,
+    not_received_reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (distribution_id) REFERENCES qrtotem_restaurant_credit_distributions(id) ON DELETE CASCADE,
+    FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE,
+    CHECK (status IN ('available', 'not_received', 'expired', 'consumed'))
+);
 
-            <details class="top-nav-group">
-              <summary>Conta</summary>
-              <div>
-                <a href="{{ url_for('client.profile') }}">Perfil</a>
-                <a href="{{ url_for('client.logout') }}">Sair</a>
-              </div>
-            </details>
-          </nav>
-        {% endif %}
-      </header>
+CREATE TABLE IF NOT EXISTS order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL,
+    product_id INTEGER,
+    product_name_snapshot TEXT NOT NULL DEFAULT '',
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    unit_price REAL NOT NULL CHECK (unit_price >= 0),
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+);
+'''
 
-      {% if show_navigation and qrtotem_restaurant_is_active == 0 %}
-        <div class="inactive-owner-banner" role="alert">
-          <strong>Seu restaurante está inativo</strong>
-          <span>Seus clientes não terão acesso à plataforma. Se já realizou a mensalidade, contate a equipe QRTotem.</span>
-        </div>
-      {% endif %}
+DEFAULT_PRODUCTS = [('Heineken', 18.99, 'Cerveja 600ml', ''),
+    ('Eisenbahn', 14.99, 'Cerveja 600ml', ''),
+    ('Amstel', 14.99, 'Cerveja 600ml', ''),
+    ('Heineken', 89.9, 'Balde de Cerveja', '600ml — 5 unidades'),
+    ('Eisenbahn', 69.9, 'Balde de Cerveja', '600ml — 5 unidades'),
+    ('Amstel Lager', 69.9, 'Balde de Cerveja', '600ml — 5 unidades'),
+    ('Heineken', 13.99, 'Cerveja Long Neck', ''),
+    ('Heineken Zero', 13.99, 'Cerveja Long Neck', ''),
+    ('Sol', 9.99, 'Cerveja Long Neck', ''),
+    ('Amstel Ultra', 11.99, 'Cerveja Long Neck', ''),
+    ('Amstel Lager', 11.99, 'Cerveja Long Neck', ''),
+    ('Eisenbahn Pilsen', 9.99, 'Cerveja Long Neck', ''),
+    ('Skol Beats', 15.99, 'Drinks Prontos', ''),
+    ('Smirnoff Ice 275ml', 15.99, 'Drinks Prontos', ''),
+    ('Gin SCHW', 11.99, 'Drinks Prontos', ''),
+    ('Gin Tropical Tanqueray', 35.0, 'Drinks', ''),
+    ('Gin Tanqueray + Red Bull', 32.0, 'Drinks', ''),
+    ('Gin Tônica Tanqueray', 30.0, 'Drinks', ''),
+    ('Gin Tônica Beefeater', 30.0, 'Drinks', ''),
+    ('Caipirinha Cachaça', 25.0, 'Drinks', 'Sabores: maracujá, limão, abacaxi ou morango. Drinks com Leite Moça: + R$5,00.'),
+    ('Caipirinha Vodka Absolut', 29.0, 'Drinks', 'Sabores: maracujá, limão, abacaxi ou morango. Drinks com Leite Moça: + R$5,00.'),
+    ('Caipirinha Vodka Smirnoff', 28.0, 'Drinks', 'Sabores: maracujá, limão, abacaxi ou morango. Drinks com Leite Moça: + R$5,00.'),
+    ('Red Label', 285.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Jack Daniels', 389.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Black Label', 399.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Vodka Absolut', 269.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Vodka Smirnoff', 219.0, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Gin Beefeater + Red Bull', 289.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Gin Beefeater + Tropical', 299.0, 'Combos', '4 Red Bull Tropical + 4 gelos de sabor'),
+    ('Gin Tanqueray + Red Bull', 349.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Gin Tanqueray + Tropical', 349.9, 'Combos', '4 Red Bull Tropical + 4 gelos de sabor'),
+    ('Tequila Ouro', 25.0, 'Doses 30ml', ''),
+    ('Tequila Prata', 25.0, 'Doses 30ml', ''),
+    ('Black Label', 30.0, 'Doses 30ml', ''),
+    ("Jack Daniel's", 25.0, 'Doses 30ml', ''),
+    ('Red Label', 20.0, 'Doses 30ml', ''),
+    ('Licor 43', 30.0, 'Doses 30ml', ''),
+    ('Campari', 20.0, 'Doses 30ml', ''),
+    ('Gin Tanqueray', 20.0, 'Doses 30ml', ''),
+    ('Gin Beefeater', 20.0, 'Doses 30ml', ''),
+    ('Vodka Absolut', 18.99, 'Doses 30ml', ''),
+    ('Vodka Smirnoff', 15.0, 'Doses 30ml', ''),
+    ('Canelinha', 5.0, 'Doses 30ml', ''),
+    ('Fritas', 34.99, 'Porções', ''),
+    ('Fritas (Cheddar + Bacon)', 49.99, 'Porções', ''),
+    ('Calabresa', 34.99, 'Porções', ''),
+    ('Bolinha de Queijo 12un', 39.99, 'Porções', ''),
+    ('Coxinha de Frango 12un', 39.99, 'Porções', ''),
+    ('Isca de Frango', 49.99, 'Porções', ''),
+    ('Frango à Passarinho', 45.99, 'Porções', ''),
+    ('Mini Pastel 12un', 39.99, 'Porções', 'Carne e queijo'),
+    ('Onion Rings', 32.99, 'Porções', ''),
+    ('Calabresa + Fritas', 59.9, 'Porções Mistas', 'Pra dividir com a galera'),
+    ('Frango + Fritas', 62.9, 'Porções Mistas', 'Pra dividir com a galera'),
+    ('Calabresa + Onion Rings', 58.9, 'Porções Mistas', 'Pra dividir com a galera'),
+    ('Frango + Onion Rings', 78.9, 'Porções Mistas', 'Pra dividir com a galera'),
+    ('Guaraná Antarctica 350ml', 6.99, 'Bebidas', ''),
+    ('Coca-Cola Lata 350ml', 6.99, 'Bebidas', ''),
+    ('Coca-Cola Zero Lata 350ml', 6.99, 'Bebidas', ''),
+    ('Sprite Lata 350ml', 6.99, 'Bebidas', ''),
+    ('Fanta Sabores 350ml', 6.99, 'Bebidas', ''),
+    ('Energético RedBull 250ml', 16.99, 'Bebidas', ''),
+    ('Energético RedBull Sabor 250ml', 17.99, 'Bebidas', ''),
+    ('Energético Monster 473ml', 18.99, 'Bebidas', ''),
+    ('Powerade', 8.99, 'Bebidas', ''),
+    ('Del Valle Lata', 6.99, 'Bebidas', ''),
+    ('Guaraviton', 6.5, 'Bebidas', ''),
+    ('Água s/gás 500ml', 3.99, 'Bebidas', ''),
+    ('Água c/gás 500ml', 4.99, 'Bebidas', ''),
+    ('Água s/gás 1,5L', 8.99, 'Bebidas', ''),
+    ('Água Tônica 350ml', 6.99, 'Bebidas', ''),
+    ('Suco Natural 400ml', 16.99, 'Sucos', 'Sabores: laranja, maracujá, abacaxi, manga ou morango. Adicional de leite: R$3,00.'),
+    ('Suco Natural 1L', 24.99, 'Sucos', 'Sabores: laranja, maracujá, abacaxi, manga ou morango. Adicional de leite: R$3,00.'),
+    ('JR10', 49.9, 'Combo Burguer', 'Pão brioche, burger 130g, molho tasty, queijo empanado, batata 150g e refrigerante lata.'),
+    ('Messi', 39.9, 'Combo Burguer', 'Pão brioche, burger 130g, cheddar, cebola caramelizada, bacon em tira, barbecue, batata 150g e refrigerante lata.'),
+    ('CR7', 39.9, 'Combo Burguer', 'Pão brioche, burger 130g, cheddar, alface americano, tomate, cebola roxa, molho tasty, batata 150g e refrigerante lata.'),
+    ('Vini JR', 31.9, 'Combo Burguer', 'Pão brioche, burger 130g, queijo cheddar, batata 150g e refrigerante lata.'),
+    ('Mbappé (Smash)', 35.9, 'Combo Burguer', 'Pão brioche, 2 smash burgers 60g, cheddar cremoso, batata 150g e refrigerante lata.'),
+    ('Neymar', 33.9, 'Combo Burguer', 'Pão brioche, frango crocante, alface americano, queijo cheddar, molho tasty, batata 150g e refrigerante lata.'),
+    ('JR10', 34.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Messi', 29.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('CR7', 28.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Vini JR', 25.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Mbappé (Smash)', 24.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Neymar', 26.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Amanteigada', 9.99, 'Tapioca Salgada', ''),
+    ('Calabresa', 14.99, 'Tapioca Salgada', ''),
+    ('Calabresa c/ Mussarela', 16.99, 'Tapioca Salgada', ''),
+    ('Mussarela', 15.99, 'Tapioca Salgada', ''),
+    ('Frango c/ Catupiry', 17.99, 'Tapioca Salgada', ''),
+    ('Frango c/ Mussarela', 19.99, 'Tapioca Salgada', ''),
+    ('Frango', 14.99, 'Tapioca Salgada', ''),
+    ('Presunto e Queijo', 14.99, 'Tapioca Salgada', ''),
+    ('Mussarela c/ Ovo', 16.99, 'Tapioca Salgada', ''),
+    ('Frango Cremoso', 16.99, 'Tapioca Salgada', 'Frango com requeijão'),
+    ('Mussarela, Tomate e Orégano', 16.99, 'Tapioca Salgada', ''),
+    ('Atum', 19.99, 'Tapioca Salgada', ''),
+    ('Coco', 11.99, 'Tapioca Doce', 'Leite condensado com coco'),
+    ('Morango', 14.99, 'Tapioca Doce', 'Leite condensado com morango'),
+    ('Banana e Canela', 14.99, 'Tapioca Doce', 'Leite condensado com banana e canela'),
+    ('Banana', 12.99, 'Tapioca Doce', 'Leite condensado com banana'),
+    ('Romeu e Julieta', 16.99, 'Tapioca Doce', 'Queijo com goiabada'),
+    ('Sensação', 16.99, 'Tapioca Doce', 'Morango com chocolate'),
+    ('Chocolate com Banana', 15.99, 'Tapioca Doce', ''),
+    ('Chocolate', 14.99, 'Tapioca Doce', ''),
+    ('Frango', 15.99, 'Lanche Natural', ''),
+    ('Simples', 13.99, 'Lanche Natural', ''),
+    ('Omelete', 17.99, 'Saudável', ''),
+    ('Crepioca', 19.99, 'Saudável', '')]
 
-      {% include 'partials/messages.html' %}
 
-      <main id="conteudo-principal" class="content-grid">
-        {% block content %}{% endblock %}
-      </main>
+def get_db():
+    if 'db' not in g:
+        db = sqlite3.connect(current_app.config['DATABASE'])
+        db.row_factory = sqlite3.Row
+        db.execute('PRAGMA foreign_keys = ON')
+        g.db = db
+    return g.db
 
-      <footer class="app-legal-footer">
-        <span>QRTotem — sistema em fase de teste.</span>
-        <a href="{{ url_for('client.terms_of_use') }}">Termos de Uso</a>
-        <a href="{{ url_for('client.privacy_policy') }}">Política de Privacidade</a>
-      </footer>
-    </div>
-  </div>
-</body>
-</html>
+
+def close_db(_exception=None):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+
+
+def _table_exists(db: sqlite3.Connection, table: str) -> bool:
+    row = db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (table,),
+    ).fetchone()
+    return row is not None
+
+
+def _table_info(db: sqlite3.Connection, table: str) -> set[str]:
+    if not _table_exists(db, table):
+        return set()
+    return {row[1] for row in db.execute(f'PRAGMA table_info({table})').fetchall()}
+
+
+def _ensure_column(db: sqlite3.Connection, table: str, column_def: str) -> None:
+    column_name = column_def.split()[0]
+    if column_name not in _table_info(db, table):
+        db.execute(f'ALTER TABLE {table} ADD COLUMN {column_def}')
+
+
+def _slugify(value: str) -> str:
+    value = str(value or '').strip().lower()
+
+    accents = str.maketrans(
+        'áàãâäéèêëíìîïóòõôöúùûüçñ',
+        'aaaaaeeeeiiiiooooouuuucn',
+    )
+    value = value.translate(accents)
+
+    value = re.sub(r'[^a-z0-9]+', '-', value)
+    value = re.sub(r'-+', '-', value).strip('-')
+    return value or 'restaurante'
+
+
+def _unique_slug(db: sqlite3.Connection, base: str, current_id: int | None = None) -> str:
+    if 'slug' not in _table_info(db, 'restaurant_profiles'):
+        return _slugify(base)
+
+    slug = _slugify(base)
+    candidate = slug
+    counter = 2
+
+    while True:
+        if current_id:
+            row = db.execute(
+                'SELECT id FROM restaurant_profiles WHERE slug = ? AND id <> ?',
+                (candidate, current_id),
+            ).fetchone()
+        else:
+            row = db.execute(
+                'SELECT id FROM restaurant_profiles WHERE slug = ?',
+                (candidate,),
+            ).fetchone()
+
+        if not row:
+            return candidate
+
+        candidate = f'{slug}-{counter}'
+        counter += 1
+
+
+def _unique_token(db: sqlite3.Connection) -> str:
+    columns = _table_info(db, 'restaurant_profiles')
+
+    while True:
+        token = secrets.token_urlsafe(10).replace('-', '').replace('_', '')[:12]
+
+        if 'public_token' not in columns:
+            return token
+
+        row = db.execute(
+            'SELECT id FROM restaurant_profiles WHERE public_token = ?',
+            (token,),
+        ).fetchone()
+
+        if not row:
+            return token
+
+
+def _migrate_admin_passwords(db: sqlite3.Connection) -> None:
+    if not _table_exists(db, 'admins'):
+        return
+
+    columns = _table_info(db, 'admins')
+
+    if 'password_hash' not in columns:
+        _ensure_column(db, 'admins', 'password_hash TEXT')
+
+    if 'is_active' not in columns:
+        _ensure_column(db, 'admins', 'is_active INTEGER NOT NULL DEFAULT 1')
+
+    if 'kitchen_password_hash' not in columns:
+        _ensure_column(db, 'admins', 'kitchen_password_hash TEXT')
+
+    if 'reset_token_hash' not in columns:
+        _ensure_column(db, 'admins', 'reset_token_hash TEXT')
+
+    if 'reset_token_expires_at' not in columns:
+        _ensure_column(db, 'admins', 'reset_token_expires_at TEXT')
+
+    columns = _table_info(db, 'admins')
+    
+    if 'password' in columns:
+        rows = db.execute('SELECT id, password, password_hash FROM admins').fetchall()
+        for row in rows:
+            current_hash = row['password_hash'] or ''
+            if current_hash.startswith(('pbkdf2:', 'scrypt:', 'argon2:')):
+                continue
+
+            raw = current_hash or row['password'] or os.getenv('ADMIN_PASSWORD', '123456')
+            if not str(raw).startswith(('pbkdf2:', 'scrypt:', 'argon2:')):
+                raw = generate_password_hash(str(raw))
+
+            db.execute(
+                'UPDATE admins SET password_hash = ?, kitchen_password_hash = COALESCE(kitchen_password_hash, ?) WHERE id = ?',
+                (raw, raw, row['id']),
+            )
+            
+    else:
+        rows = db.execute('SELECT id, password_hash FROM admins').fetchall()
+        for row in rows:
+            current_hash = row['password_hash'] or ''
+            if not current_hash.startswith(('pbkdf2:', 'scrypt:', 'argon2:')):
+                new_hash = generate_password_hash(current_hash or os.getenv('ADMIN_PASSWORD', '123456'))
+                db.execute(
+                    'UPDATE admins SET password_hash = ?, kitchen_password_hash = COALESCE(kitchen_password_hash, ?) WHERE id = ?',
+                    (new_hash, new_hash, row['id']),
+                )
+
+def _migrate_restaurant_profiles(db: sqlite3.Connection) -> None:
+    if not _table_exists(db, 'restaurant_profiles'):
+        return
+
+    _ensure_column(db, 'restaurant_profiles', 'table_count INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'restaurant_profiles', 'public_token TEXT')
+    _ensure_column(db, 'restaurant_profiles', 'slug TEXT')
+    _ensure_column(db, 'restaurant_profiles', "order_payment_mode TEXT NOT NULL DEFAULT 'pay_after'")
+    _ensure_column(db, 'restaurant_profiles', "service_mode TEXT NOT NULL DEFAULT 'full_order_payment'")
+    _ensure_column(db, 'restaurant_profiles', 'is_active INTEGER NOT NULL DEFAULT 1')
+
+    db.execute('''
+        UPDATE restaurant_profiles
+           SET order_payment_mode = 'pay_after'
+         WHERE order_payment_mode IS NULL
+            OR order_payment_mode = ''
+            OR order_payment_mode NOT IN ('pay_before', 'pay_after')
+    ''')
+
+    db.execute('''
+        UPDATE restaurant_profiles
+           SET service_mode = 'full_order_payment'
+         WHERE service_mode IS NULL
+            OR service_mode = ''
+            OR service_mode NOT IN ('digital_menu', 'full_order_payment')
+    ''')
+
+    db.execute('''
+        UPDATE restaurant_profiles
+           SET is_active = 1
+         WHERE is_active IS NULL
+            OR is_active NOT IN (0, 1)
+    ''')
+
+    rows = db.execute(
+        'SELECT id, restaurant_name, public_token, slug FROM restaurant_profiles'
+    ).fetchall()
+
+    for row in rows:
+        token = row['public_token'] or _unique_token(db)
+        slug = row['slug'] or _unique_slug(db, row['restaurant_name'], row['id'])
+        db.execute(
+            '''
+            UPDATE restaurant_profiles
+               SET public_token = ?,
+                   slug = ?
+             WHERE id = ?
+            ''',
+            (token, slug, row['id']),
+        )
+
+
+def _ensure_default_profile(db: sqlite3.Connection) -> int:
+    admin = db.execute(
+        'SELECT id, username FROM admins ORDER BY id ASC LIMIT 1'
+    ).fetchone()
+
+    if not admin:
+        return 0
+
+    profile = db.execute(
+        'SELECT id FROM restaurant_profiles WHERE admin_id = ?',
+        (admin['id'],),
+    ).fetchone()
+
+    if profile:
+        return profile['id']
+
+    cursor = db.execute(
+        '''
+        INSERT INTO restaurant_profiles (
+            admin_id,
+            owner_name,
+            age,
+            email,
+            restaurant_name,
+            cnpj,
+            restaurant_address,
+            cell_phone,
+            table_count,
+            service_mode,
+            is_active,
+            public_token,
+            slug
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'full_order_payment', 1, ?, ?)
+        ''',
+        (
+            admin['id'],
+            'Administrador',
+            18,
+            'admin@example.com',
+            'Restaurante Demo',
+            '00000000000000',
+            'Endereço não informado',
+            '00000000000',
+            _unique_token(db),
+            _unique_slug(db, 'Restaurante Demo'),
+        ),
+    )
+    return cursor.lastrowid
+
+
+def _migrate_products(db: sqlite3.Connection) -> None:
+    if not _table_exists(db, 'products'):
+        return
+
+    _ensure_column(db, 'products', 'restaurant_id INTEGER')
+    _ensure_column(db, 'products', 'description TEXT')
+    _ensure_column(db, 'products', 'sort_order INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'products', "kind TEXT NOT NULL DEFAULT 'menu'")
+    _ensure_column(db, 'products', 'created_at TEXT')
+    _ensure_column(db, 'products', 'updated_at TEXT')
+
+    default_profile = db.execute(
+        'SELECT id FROM restaurant_profiles ORDER BY id ASC LIMIT 1'
+    ).fetchone()
+
+    if default_profile:
+        db.execute(
+            'UPDATE products SET restaurant_id = COALESCE(restaurant_id, ?)',
+            (default_profile['id'],),
+        )
+
+    db.execute("UPDATE products SET kind = COALESCE(NULLIF(kind, ''), 'menu')")
+
+
+def _ensure_product_addons(db: sqlite3.Connection) -> None:
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS product_addons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            price REAL NOT NULL CHECK (price >= 0),
+            active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+    """)
+
+    _ensure_column(db, 'product_addons', 'product_id INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'product_addons', "label TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'product_addons', 'price REAL NOT NULL DEFAULT 0')
+    _ensure_column(db, 'product_addons', 'active INTEGER NOT NULL DEFAULT 1')
+    _ensure_column(db, 'product_addons', 'sort_order INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'product_addons', 'created_at TEXT')
+    _ensure_column(db, 'product_addons', 'updated_at TEXT')
+
+
+def _migrate_customer_coupon_users(db: sqlite3.Connection) -> None:
+    if not _table_exists(db, 'customer_coupon_users'):
+        return
+
+    _ensure_column(db, 'customer_coupon_users', 'receive_whatsapp INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'customer_coupon_users', 'receive_email INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'customer_coupon_users', 'radar_enabled INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'customer_coupon_users', 'updated_at TEXT')
+
+
+def _ensure_coupon_redemptions(db: sqlite3.Connection) -> None:
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS coupon_redemptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            restaurant_id INTEGER NOT NULL,
+            coupon_id INTEGER NOT NULL,
+            customer_id INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'reserved',
+            code TEXT NOT NULL DEFAULT '',
+            reserved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT NOT NULL,
+            code_generated_at TEXT,
+            code_expires_at TEXT,
+            used_at TEXT,
+            validated_by_admin_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE,
+            FOREIGN KEY (coupon_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY (customer_id) REFERENCES customer_coupon_users(id) ON DELETE CASCADE,
+            FOREIGN KEY (validated_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+            CHECK (status IN ('reserved', 'code_generated', 'used', 'expired', 'cancelled'))
+        )
+    """)
+
+    _ensure_column(db, 'coupon_redemptions', 'restaurant_id INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'coupon_redemptions', 'coupon_id INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'coupon_redemptions', 'customer_id INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'coupon_redemptions', "status TEXT NOT NULL DEFAULT 'reserved'")
+    _ensure_column(db, 'coupon_redemptions', "code TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'coupon_redemptions', 'reserved_at TEXT')
+    _ensure_column(db, 'coupon_redemptions', 'expires_at TEXT')
+    _ensure_column(db, 'coupon_redemptions', 'code_generated_at TEXT')
+    _ensure_column(db, 'coupon_redemptions', 'code_expires_at TEXT')
+    _ensure_column(db, 'coupon_redemptions', 'used_at TEXT')
+    _ensure_column(db, 'coupon_redemptions', 'validated_by_admin_id INTEGER')
+    _ensure_column(db, 'coupon_redemptions', 'created_at TEXT')
+    _ensure_column(db, 'coupon_redemptions', 'updated_at TEXT')
+
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    db.execute("""
+        UPDATE coupon_redemptions
+           SET status = CASE
+                   WHEN status IN ('reserved', 'code_generated', 'used', 'expired', 'cancelled') THEN status
+                   ELSE 'reserved'
+               END,
+               code = COALESCE(code, ''),
+               reserved_at = COALESCE(reserved_at, ?),
+               expires_at = COALESCE(expires_at, datetime(?, '+3 hours')),
+               created_at = COALESCE(created_at, ?),
+               updated_at = COALESCE(updated_at, ?)
+    """, (now, now, now, now))
+
+
+
+def _ensure_qrtotem_coupon_tables(db: sqlite3.Connection) -> None:
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS qrtotem_coupon_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            coupon_type TEXT NOT NULL DEFAULT 'global',
+            value REAL NOT NULL CHECK (value > 0),
+            min_purchase_amount REAL NOT NULL CHECK (min_purchase_amount > 0),
+            total_quantity INTEGER NOT NULL DEFAULT 0 CHECK (total_quantity >= 0),
+            active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+            starts_at TEXT,
+            ends_at TEXT,
+            created_by TEXT NOT NULL DEFAULT 'owner',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CHECK (coupon_type IN ('global', 'referral', 'restaurant_credit'))
+        )
+    """)
+
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS qrtotem_coupon_redemptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            campaign_id INTEGER NOT NULL,
+            customer_id INTEGER,
+            customer_name TEXT NOT NULL DEFAULT '',
+            customer_email TEXT NOT NULL DEFAULT '',
+            customer_username TEXT NOT NULL DEFAULT '',
+            generated_restaurant_id INTEGER,
+            used_restaurant_id INTEGER,
+            status TEXT NOT NULL DEFAULT 'code_generated',
+            code TEXT NOT NULL DEFAULT '',
+            code_generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            code_expires_at TEXT NOT NULL,
+            used_at TEXT,
+            validated_by_admin_id INTEGER,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (campaign_id) REFERENCES qrtotem_coupon_campaigns(id) ON DELETE CASCADE,
+            FOREIGN KEY (customer_id) REFERENCES customer_coupon_users(id) ON DELETE SET NULL,
+            FOREIGN KEY (generated_restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE SET NULL,
+            FOREIGN KEY (used_restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE SET NULL,
+            FOREIGN KEY (validated_by_admin_id) REFERENCES admins(id) ON DELETE SET NULL,
+            CHECK (status IN ('code_generated', 'used', 'expired', 'cancelled'))
+        )
+    """)
+
+    for column_def in [
+        "title TEXT NOT NULL DEFAULT ''",
+        "description TEXT NOT NULL DEFAULT ''",
+        "coupon_type TEXT NOT NULL DEFAULT 'global'",
+        "value REAL NOT NULL DEFAULT 0",
+        "min_purchase_amount REAL NOT NULL DEFAULT 0",
+        "total_quantity INTEGER NOT NULL DEFAULT 0",
+        "active INTEGER NOT NULL DEFAULT 1",
+        "restaurant_id INTEGER",
+        "credit_allocation_id INTEGER",
+        "target_customer_id INTEGER",
+        "target_customer_email TEXT NOT NULL DEFAULT ''",
+        "target_customer_name TEXT NOT NULL DEFAULT ''",
+        "referral_id INTEGER",
+        "starts_at TEXT",
+        "ends_at TEXT",
+        "expires_at TEXT",
+        "created_by TEXT NOT NULL DEFAULT 'owner'",
+        "created_at TEXT",
+        "updated_at TEXT",
+    ]:
+        _ensure_column(db, 'qrtotem_coupon_campaigns', column_def)
+
+    for column_def in [
+        "campaign_id INTEGER NOT NULL DEFAULT 0",
+        "customer_id INTEGER",
+        "customer_name TEXT NOT NULL DEFAULT ''",
+        "customer_email TEXT NOT NULL DEFAULT ''",
+        "customer_username TEXT NOT NULL DEFAULT ''",
+        "generated_restaurant_id INTEGER",
+        "used_restaurant_id INTEGER",
+        "status TEXT NOT NULL DEFAULT 'code_generated'",
+        "code TEXT NOT NULL DEFAULT ''",
+        "code_generated_at TEXT",
+        "code_expires_at TEXT",
+        "used_at TEXT",
+        "validated_by_admin_id INTEGER",
+        "created_at TEXT",
+        "updated_at TEXT",
+    ]:
+        _ensure_column(db, 'qrtotem_coupon_redemptions', column_def)
+
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    db.execute("""
+        UPDATE qrtotem_coupon_campaigns
+           SET min_purchase_amount = CASE
+                   WHEN COALESCE(min_purchase_amount, 0) < COALESCE(value, 0) + 5 THEN COALESCE(value, 0) + 5
+                   ELSE min_purchase_amount
+               END,
+               coupon_type = CASE
+                   WHEN coupon_type IN ('global', 'referral', 'restaurant_credit') THEN coupon_type
+                   ELSE 'global'
+               END,
+               active = CASE WHEN active IN (0, 1) THEN active ELSE 1 END,
+               target_customer_email = lower(COALESCE(target_customer_email, '')),
+               target_customer_name = COALESCE(target_customer_name, ''),
+               created_at = COALESCE(created_at, ?),
+               updated_at = COALESCE(updated_at, ?)
+    """, (now, now))
+
+    db.execute("""
+        UPDATE qrtotem_coupon_redemptions
+           SET status = CASE
+                   WHEN status IN ('code_generated', 'used', 'expired', 'cancelled') THEN status
+                   ELSE 'code_generated'
+               END,
+               code = COALESCE(code, ''),
+               customer_name = COALESCE(customer_name, ''),
+               customer_email = lower(COALESCE(customer_email, '')),
+               customer_username = COALESCE(customer_username, ''),
+               code_generated_at = COALESCE(code_generated_at, ?),
+               code_expires_at = COALESCE(code_expires_at, datetime(?, '+10 minutes')),
+               created_at = COALESCE(created_at, ?),
+               updated_at = COALESCE(updated_at, ?)
+    """, (now, now, now, now))
+
+
+
+def _ensure_referral_tables(db: sqlite3.Connection) -> None:
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS qrtotem_referrals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
+            customer_name TEXT NOT NULL DEFAULT '',
+            customer_email TEXT NOT NULL DEFAULT '',
+            customer_username TEXT NOT NULL DEFAULT '',
+            indicated_restaurant_name TEXT NOT NULL DEFAULT '',
+            indicated_contact_name TEXT NOT NULL DEFAULT '',
+            indicated_contact_phone TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'pending',
+            approved_restaurant_id INTEGER,
+            approved_by TEXT NOT NULL DEFAULT 'owner',
+            approved_at TEXT,
+            rejected_at TEXT,
+            rejection_reason TEXT NOT NULL DEFAULT '',
+            monthly_amount REAL NOT NULL DEFAULT 40,
+            months_total INTEGER NOT NULL DEFAULT 3,
+            campaigns_created INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (customer_id) REFERENCES customer_coupon_users(id) ON DELETE SET NULL,
+            FOREIGN KEY (approved_restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE SET NULL,
+            CHECK (status IN ('pending', 'approved', 'rejected'))
+        )
+    """)
+
+    for column_def in [
+        "customer_id INTEGER",
+        "customer_name TEXT NOT NULL DEFAULT ''",
+        "customer_email TEXT NOT NULL DEFAULT ''",
+        "customer_username TEXT NOT NULL DEFAULT ''",
+        "indicated_restaurant_name TEXT NOT NULL DEFAULT ''",
+        "indicated_contact_name TEXT NOT NULL DEFAULT ''",
+        "indicated_contact_phone TEXT NOT NULL DEFAULT ''",
+        "notes TEXT NOT NULL DEFAULT ''",
+        "status TEXT NOT NULL DEFAULT 'pending'",
+        "approved_restaurant_id INTEGER",
+        "approved_by TEXT NOT NULL DEFAULT 'owner'",
+        "approved_at TEXT",
+        "rejected_at TEXT",
+        "rejection_reason TEXT NOT NULL DEFAULT ''",
+        "monthly_amount REAL NOT NULL DEFAULT 40",
+        "months_total INTEGER NOT NULL DEFAULT 3",
+        "campaigns_created INTEGER NOT NULL DEFAULT 0",
+        "created_at TEXT",
+        "updated_at TEXT",
+    ]:
+        _ensure_column(db, 'qrtotem_referrals', column_def)
+
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    db.execute("""
+        UPDATE qrtotem_referrals
+           SET customer_name = COALESCE(customer_name, ''),
+               customer_email = lower(COALESCE(customer_email, '')),
+               customer_username = COALESCE(customer_username, ''),
+               indicated_restaurant_name = COALESCE(indicated_restaurant_name, ''),
+               indicated_contact_name = COALESCE(indicated_contact_name, ''),
+               indicated_contact_phone = COALESCE(indicated_contact_phone, ''),
+               notes = COALESCE(notes, ''),
+               status = CASE WHEN status IN ('pending', 'approved', 'rejected') THEN status ELSE 'pending' END,
+               monthly_amount = COALESCE(monthly_amount, 40),
+               months_total = COALESCE(months_total, 3),
+               campaigns_created = COALESCE(campaigns_created, 0),
+               created_at = COALESCE(created_at, ?),
+               updated_at = COALESCE(updated_at, ?)
+    """, (now, now))
+
+
+def _ensure_restaurant_credit_tables(db: sqlite3.Connection) -> None:
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS qrtotem_restaurant_credit_distributions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            notes TEXT NOT NULL DEFAULT '',
+            amount_per_restaurant REAL NOT NULL CHECK (amount_per_restaurant > 0),
+            validity_days INTEGER NOT NULL DEFAULT 30 CHECK (validity_days > 0),
+            expires_at TEXT NOT NULL,
+            active_restaurants_count INTEGER NOT NULL DEFAULT 0,
+            inactive_restaurants_count INTEGER NOT NULL DEFAULT 0,
+            total_credit_amount REAL NOT NULL DEFAULT 0,
+            created_by TEXT NOT NULL DEFAULT 'owner',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS qrtotem_restaurant_credit_allocations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            distribution_id INTEGER NOT NULL,
+            restaurant_id INTEGER NOT NULL,
+            restaurant_name_snapshot TEXT NOT NULL DEFAULT '',
+            owner_name_snapshot TEXT NOT NULL DEFAULT '',
+            email_snapshot TEXT NOT NULL DEFAULT '',
+            restaurant_was_active INTEGER NOT NULL DEFAULT 0 CHECK (restaurant_was_active IN (0, 1)),
+            status TEXT NOT NULL DEFAULT 'not_received',
+            initial_amount REAL NOT NULL DEFAULT 0 CHECK (initial_amount >= 0),
+            allocated_amount REAL NOT NULL DEFAULT 0 CHECK (allocated_amount >= 0),
+            expires_at TEXT,
+            not_received_reason TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (distribution_id) REFERENCES qrtotem_restaurant_credit_distributions(id) ON DELETE CASCADE,
+            FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE,
+            CHECK (status IN ('available', 'not_received', 'expired', 'consumed'))
+        )
+    """)
+
+    for column_def in [
+        "title TEXT NOT NULL DEFAULT ''",
+        "notes TEXT NOT NULL DEFAULT ''",
+        "amount_per_restaurant REAL NOT NULL DEFAULT 0",
+        "validity_days INTEGER NOT NULL DEFAULT 30",
+        "expires_at TEXT",
+        "active_restaurants_count INTEGER NOT NULL DEFAULT 0",
+        "inactive_restaurants_count INTEGER NOT NULL DEFAULT 0",
+        "total_credit_amount REAL NOT NULL DEFAULT 0",
+        "created_by TEXT NOT NULL DEFAULT 'owner'",
+        "created_at TEXT",
+        "updated_at TEXT",
+    ]:
+        _ensure_column(db, 'qrtotem_restaurant_credit_distributions', column_def)
+
+    for column_def in [
+        "distribution_id INTEGER NOT NULL DEFAULT 0",
+        "restaurant_id INTEGER NOT NULL DEFAULT 0",
+        "restaurant_name_snapshot TEXT NOT NULL DEFAULT ''",
+        "owner_name_snapshot TEXT NOT NULL DEFAULT ''",
+        "email_snapshot TEXT NOT NULL DEFAULT ''",
+        "restaurant_was_active INTEGER NOT NULL DEFAULT 0",
+        "status TEXT NOT NULL DEFAULT 'not_received'",
+        "initial_amount REAL NOT NULL DEFAULT 0",
+        "allocated_amount REAL NOT NULL DEFAULT 0",
+        "expires_at TEXT",
+        "not_received_reason TEXT NOT NULL DEFAULT ''",
+        "created_at TEXT",
+        "updated_at TEXT",
+    ]:
+        _ensure_column(db, 'qrtotem_restaurant_credit_allocations', column_def)
+
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    db.execute("""
+        UPDATE qrtotem_restaurant_credit_distributions
+           SET notes = COALESCE(notes, ''),
+               amount_per_restaurant = COALESCE(amount_per_restaurant, 0),
+               validity_days = COALESCE(validity_days, 30),
+               expires_at = COALESCE(expires_at, datetime(COALESCE(created_at, ?), '+30 days')),
+               active_restaurants_count = COALESCE(active_restaurants_count, 0),
+               inactive_restaurants_count = COALESCE(inactive_restaurants_count, 0),
+               total_credit_amount = COALESCE(total_credit_amount, 0),
+               created_at = COALESCE(created_at, ?),
+               updated_at = COALESCE(updated_at, ?)
+    """, (now, now, now))
+
+    db.execute("""
+        UPDATE qrtotem_restaurant_credit_allocations
+           SET restaurant_name_snapshot = COALESCE(restaurant_name_snapshot, ''),
+               owner_name_snapshot = COALESCE(owner_name_snapshot, ''),
+               email_snapshot = COALESCE(email_snapshot, ''),
+               restaurant_was_active = CASE WHEN restaurant_was_active IN (0, 1) THEN restaurant_was_active ELSE 0 END,
+               status = CASE WHEN status IN ('available', 'not_received', 'expired', 'consumed') THEN status ELSE 'not_received' END,
+               initial_amount = COALESCE(initial_amount, 0),
+               allocated_amount = COALESCE(allocated_amount, 0),
+               not_received_reason = COALESCE(not_received_reason, ''),
+               created_at = COALESCE(created_at, ?),
+               updated_at = COALESCE(updated_at, ?)
+    """, (now, now))
+
+    db.execute("""
+        UPDATE qrtotem_restaurant_credit_allocations
+           SET status = 'expired',
+               updated_at = CURRENT_TIMESTAMP
+         WHERE status = 'available'
+           AND expires_at IS NOT NULL
+           AND datetime(expires_at) <= datetime('now')
+    """)
+
+
+def _migrate_orders(db: sqlite3.Connection) -> None:
+    if not _table_exists(db, 'orders'):
+        return
+
+    _ensure_column(db, 'orders', 'restaurant_id INTEGER')
+    _ensure_column(db, 'orders', 'customer_name TEXT NOT NULL DEFAULT ""')
+    _ensure_column(db, 'orders', 'notes TEXT')
+    _ensure_column(db, 'orders', 'total_amount REAL NOT NULL DEFAULT 0')
+    _ensure_column(db, 'orders', 'payment_required INTEGER NOT NULL DEFAULT 0')
+    _ensure_column(db, 'orders', "payment_status TEXT NOT NULL DEFAULT 'not_required'")
+    _ensure_column(db, 'orders', "payment_provider TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'orders', "payment_external_id TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'orders', "payment_external_reference TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'orders', "payment_qr_code TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'orders', "payment_qr_code_base64 TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'orders', "payment_ticket_url TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'orders', 'payment_created_at TEXT')
+    _ensure_column(db, 'orders', 'payment_approved_at TEXT')
+    _ensure_column(db, 'orders', 'payment_expires_at TEXT')
+    _ensure_column(db, 'orders', "payment_error TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'orders', 'updated_at TEXT')
+
+    default_profile = db.execute(
+        'SELECT id FROM restaurant_profiles ORDER BY id ASC LIMIT 1'
+    ).fetchone()
+
+    if default_profile:
+        db.execute(
+            'UPDATE orders SET restaurant_id = COALESCE(restaurant_id, ?)',
+            (default_profile['id'],),
+        )
+
+    db.execute('UPDATE orders SET customer_name = COALESCE(customer_name, "")')
+    db.execute('UPDATE orders SET payment_required = COALESCE(payment_required, 0)')
+    db.execute('''
+        UPDATE orders
+           SET payment_status = 'not_required'
+         WHERE payment_status IS NULL
+            OR payment_status = ''
+            OR payment_status NOT IN ('not_required', 'pending', 'approved', 'rejected', 'cancelled', 'expired', 'error')
+    ''')
+
+
+def _ensure_restaurant_payment_accounts(db: sqlite3.Connection) -> None:
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS restaurant_payment_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            restaurant_id INTEGER NOT NULL,
+            provider TEXT NOT NULL DEFAULT 'mercadopago',
+            provider_user_id TEXT NOT NULL DEFAULT '',
+            access_token_encrypted TEXT NOT NULL DEFAULT '',
+            refresh_token_encrypted TEXT NOT NULL DEFAULT '',
+            token_expires_at TEXT,
+            public_key TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'not_connected',
+            connected_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_error TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE,
+            UNIQUE (restaurant_id, provider),
+            CHECK (status IN ('not_connected', 'connected', 'error', 'disabled'))
+        )
+    ''')
+
+    _ensure_column(db, 'restaurant_payment_accounts', "provider TEXT NOT NULL DEFAULT 'mercadopago'")
+    _ensure_column(db, 'restaurant_payment_accounts', "provider_user_id TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'restaurant_payment_accounts', "access_token_encrypted TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'restaurant_payment_accounts', "refresh_token_encrypted TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'restaurant_payment_accounts', 'token_expires_at TEXT')
+    _ensure_column(db, 'restaurant_payment_accounts', "public_key TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'restaurant_payment_accounts', "status TEXT NOT NULL DEFAULT 'not_connected'")
+    _ensure_column(db, 'restaurant_payment_accounts', 'connected_at TEXT')
+    _ensure_column(db, 'restaurant_payment_accounts', 'updated_at TEXT')
+    _ensure_column(db, 'restaurant_payment_accounts', "last_error TEXT NOT NULL DEFAULT ''")
+
+    db.execute('''
+        UPDATE restaurant_payment_accounts
+           SET provider = COALESCE(NULLIF(provider, ''), 'mercadopago'),
+               provider_user_id = COALESCE(provider_user_id, ''),
+               access_token_encrypted = COALESCE(access_token_encrypted, ''),
+               refresh_token_encrypted = COALESCE(refresh_token_encrypted, ''),
+               public_key = COALESCE(public_key, ''),
+               status = CASE
+                   WHEN status IN ('not_connected', 'connected', 'error', 'disabled') THEN status
+                   ELSE 'not_connected'
+               END,
+               updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP),
+               last_error = COALESCE(last_error, '')
+    ''')
+
+
+def _migrate_order_items(db: sqlite3.Connection) -> None:
+    if not _table_exists(db, 'order_items'):
+        return
+
+    _ensure_column(db, 'order_items', 'product_name_snapshot TEXT NOT NULL DEFAULT ""')
+
+
+
+def _seed_default_menu_products(db: sqlite3.Connection, restaurant_id: int) -> None:
+    existing_count = db.execute(
+        "SELECT COUNT(*) FROM products WHERE restaurant_id = ? AND kind = 'menu'",
+        (restaurant_id,),
+    ).fetchone()[0]
+
+    has_jrio_menu = db.execute(
+        """
+        SELECT 1
+          FROM products
+         WHERE restaurant_id = ?
+           AND kind = 'menu'
+           AND category = 'Combo Burguer'
+           AND name = 'JR10'
+         LIMIT 1
+        """,
+        (restaurant_id,),
+    ).fetchone()
+
+    if existing_count and has_jrio_menu:
+        return
+
+    old_default_names = {'Hambúrguer Artesanal', 'Batata Frita', 'Refrigerante', 'Combo da Casa'}
+    if existing_count and not has_jrio_menu:
+        for product_name in old_default_names:
+            row = db.execute(
+                """
+                SELECT id
+                  FROM products
+                 WHERE restaurant_id = ?
+                   AND kind = 'menu'
+                   AND name = ?
+                 LIMIT 1
+                """,
+                (restaurant_id, product_name),
+            ).fetchone()
+            if row:
+                db.execute(
+                    "DELETE FROM products WHERE id = ? AND restaurant_id = ? AND kind = 'menu'",
+                    (row['id'], restaurant_id),
+                )
+
+    category_orders: dict[str, int] = {}
+    for name, price, category, description in DEFAULT_PRODUCTS:
+        exists = db.execute(
+            """
+            SELECT 1
+              FROM products
+             WHERE restaurant_id = ?
+               AND kind = 'menu'
+               AND category = ?
+               AND name = ?
+             LIMIT 1
+            """,
+            (restaurant_id, category, name),
+        ).fetchone()
+        if exists:
+            continue
+
+        category_orders[category] = category_orders.get(category, 0) + 1
+        sort_order = category_orders[category]
+        db.execute(
+            """
+            INSERT INTO products (
+                restaurant_id,
+                name,
+                description,
+                price,
+                category,
+                active,
+                sort_order,
+                kind
+            )
+            VALUES (?, ?, ?, ?, ?, 1, ?, 'menu')
+            """,
+            (restaurant_id, name, description, price, category, sort_order),
+        )
+
+def _seed_defaults(db: sqlite3.Connection) -> None:
+    default_admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+    default_admin_password = os.getenv('ADMIN_PASSWORD', '123456')
+
+    if db.execute('SELECT COUNT(*) FROM admins').fetchone()[0] == 0:
+        default_hash = generate_password_hash(default_admin_password)
+        db.execute(
+            'INSERT INTO admins (username, password_hash, kitchen_password_hash, is_active) VALUES (?, ?, ?, 1)',
+            (default_admin_username, default_hash, default_hash),
+        )
+        
+    _migrate_restaurant_profiles(db)
+    default_restaurant_id = _ensure_default_profile(db)
+
+    if default_restaurant_id:
+        _seed_default_menu_products(db, default_restaurant_id)
+
+
+def _create_indexes(db: sqlite3.Connection) -> None:
+    if _table_exists(db, 'restaurant_profiles'):
+        columns = _table_info(db, 'restaurant_profiles')
+
+        if 'public_token' in columns:
+            db.execute(
+                'CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurant_profiles_public_token ON restaurant_profiles(public_token)'
+            )
+
+        if 'slug' in columns:
+            db.execute(
+                'CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurant_profiles_slug ON restaurant_profiles(slug)'
+            )
+
+    if _table_exists(db, 'products'):
+        columns = _table_info(db, 'products')
+
+        if {'restaurant_id', 'active', 'category', 'name'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_products_restaurant_active_category ON products(restaurant_id, active, category, name)'
+            )
+
+        if {'restaurant_id', 'kind', 'active', 'category', 'name'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_products_restaurant_kind_active_category ON products(restaurant_id, kind, active, category, name)'
+            )
+
+    if _table_exists(db, 'product_addons'):
+        columns = _table_info(db, 'product_addons')
+
+        if {'product_id', 'active', 'sort_order'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_product_addons_product_active_sort ON product_addons(product_id, active, sort_order)'
+            )
+
+    if _table_exists(db, 'customer_coupon_users'):
+        columns = _table_info(db, 'customer_coupon_users')
+
+        if {'restaurant_id', 'username'}.issubset(columns):
+            db.execute(
+                'CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_coupon_users_restaurant_username ON customer_coupon_users(restaurant_id, username)'
+            )
+
+        if {'restaurant_id', 'radar_enabled'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_customer_coupon_users_restaurant_radar ON customer_coupon_users(restaurant_id, radar_enabled)'
+            )
+
+    if _table_exists(db, 'coupon_redemptions'):
+        columns = _table_info(db, 'coupon_redemptions')
+
+        if {'restaurant_id', 'customer_id', 'coupon_id', 'status'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_customer_coupon_status ON coupon_redemptions(restaurant_id, customer_id, coupon_id, status)'
+            )
+
+        if {'restaurant_id', 'code', 'status'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_code_status ON coupon_redemptions(restaurant_id, code, status)'
+            )
+
+        if {'restaurant_id', 'created_at'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_coupon_redemptions_restaurant_created ON coupon_redemptions(restaurant_id, created_at)'
+            )
+
+
+    if _table_exists(db, 'orders'):
+        columns = _table_info(db, 'orders')
+
+        if {'restaurant_id', 'status', 'created_at'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_orders_restaurant_status_created ON orders(restaurant_id, status, created_at)'
+            )
+
+        if {'restaurant_id', 'table_number', 'status'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_orders_restaurant_table_status ON orders(restaurant_id, table_number, status)'
+            )
+
+        if {'restaurant_id', 'payment_required', 'payment_status', 'created_at'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_orders_restaurant_payment_status_created ON orders(restaurant_id, payment_required, payment_status, created_at)'
+            )
+
+        if 'payment_external_reference' in columns:
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_orders_payment_external_reference ON orders(payment_external_reference)'
+            )
+
+        if 'payment_external_id' in columns:
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_orders_payment_external_id ON orders(payment_external_id)'
+            )
+
+    if _table_exists(db, 'restaurant_payment_accounts'):
+        columns = _table_info(db, 'restaurant_payment_accounts')
+
+        if {'restaurant_id', 'provider'}.issubset(columns):
+            db.execute(
+                'CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurant_payment_accounts_restaurant_provider ON restaurant_payment_accounts(restaurant_id, provider)'
+            )
+
+        if {'restaurant_id', 'status'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_restaurant_payment_accounts_restaurant_status ON restaurant_payment_accounts(restaurant_id, status)'
+            )
+
+    if _table_exists(db, 'order_items'):
+        columns = _table_info(db, 'order_items')
+
+        if 'order_id' in columns:
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id)'
+            )
+
+
+    if _table_exists(db, 'qrtotem_coupon_campaigns'):
+        columns = _table_info(db, 'qrtotem_coupon_campaigns')
+        if {'active', 'coupon_type'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_qrtotem_coupon_campaigns_active_type ON qrtotem_coupon_campaigns(active, coupon_type)'
+            )
+
+    if _table_exists(db, 'qrtotem_coupon_redemptions'):
+        columns = _table_info(db, 'qrtotem_coupon_redemptions')
+        if {'campaign_id', 'status'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_qrtotem_coupon_redemptions_campaign_status ON qrtotem_coupon_redemptions(campaign_id, status)'
+            )
+        if 'code' in columns:
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_qrtotem_coupon_redemptions_code ON qrtotem_coupon_redemptions(code)'
+            )
+        if {'customer_email', 'campaign_id', 'status'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_qrtotem_coupon_redemptions_customer_campaign ON qrtotem_coupon_redemptions(customer_email, campaign_id, status)'
+            )
+
+
+
+    if _table_exists(db, 'qrtotem_referrals'):
+        columns = _table_info(db, 'qrtotem_referrals')
+        if {'status', 'created_at'}.issubset(columns):
+            db.execute('CREATE INDEX IF NOT EXISTS idx_qrtotem_referrals_status_created ON qrtotem_referrals(status, created_at)')
+        if 'customer_email' in columns:
+            db.execute('CREATE INDEX IF NOT EXISTS idx_qrtotem_referrals_customer_email ON qrtotem_referrals(customer_email)')
+
+    if _table_exists(db, 'qrtotem_restaurant_credit_distributions'):
+        columns = _table_info(db, 'qrtotem_restaurant_credit_distributions')
+        if 'created_at' in columns:
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_qrtotem_credit_distributions_created ON qrtotem_restaurant_credit_distributions(created_at)'
+            )
+
+    if _table_exists(db, 'qrtotem_restaurant_credit_allocations'):
+        columns = _table_info(db, 'qrtotem_restaurant_credit_allocations')
+        if {'distribution_id', 'status'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_qrtotem_credit_allocations_distribution_status ON qrtotem_restaurant_credit_allocations(distribution_id, status)'
+            )
+        if {'restaurant_id', 'status'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_qrtotem_credit_allocations_restaurant_status ON qrtotem_restaurant_credit_allocations(restaurant_id, status)'
+            )
+
+
+def migrate_schema(db: sqlite3.Connection) -> None:
+    _migrate_admin_passwords(db)
+    _migrate_restaurant_profiles(db)
+    _migrate_products(db)
+    _ensure_product_addons(db)
+    _migrate_customer_coupon_users(db)
+    _ensure_coupon_redemptions(db)
+    _ensure_qrtotem_coupon_tables(db)
+    _ensure_referral_tables(db)
+    _ensure_restaurant_credit_tables(db)
+    _migrate_orders(db)
+    _ensure_restaurant_payment_accounts(db)
+    _migrate_order_items(db)
+
+
+def _backfill_timestamps(db: sqlite3.Connection) -> None:
+    now = datetime.utcnow().isoformat(timespec='seconds')
+
+    if _table_exists(db, 'products'):
+        columns = _table_info(db, 'products')
+
+        if 'created_at' in columns:
+            db.execute('UPDATE products SET created_at = COALESCE(created_at, ?)', (now,))
+
+        if 'updated_at' in columns:
+            db.execute('UPDATE products SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+        if 'kind' in columns:
+            db.execute("UPDATE products SET kind = COALESCE(NULLIF(kind, ''), 'menu')")
+
+    if _table_exists(db, 'product_addons'):
+        columns = _table_info(db, 'product_addons')
+
+        if 'created_at' in columns:
+            db.execute('UPDATE product_addons SET created_at = COALESCE(created_at, ?)', (now,))
+
+        if 'updated_at' in columns:
+            db.execute('UPDATE product_addons SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+    if _table_exists(db, 'customer_coupon_users'):
+        columns = _table_info(db, 'customer_coupon_users')
+
+        if 'updated_at' in columns:
+            db.execute('UPDATE customer_coupon_users SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+        if 'radar_enabled' in columns:
+            db.execute('UPDATE customer_coupon_users SET radar_enabled = COALESCE(radar_enabled, 0)')
+
+    if _table_exists(db, 'coupon_redemptions'):
+        columns = _table_info(db, 'coupon_redemptions')
+
+        if 'updated_at' in columns:
+            db.execute('UPDATE coupon_redemptions SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+
+    if _table_exists(db, 'qrtotem_coupon_campaigns'):
+        columns = _table_info(db, 'qrtotem_coupon_campaigns')
+        if 'updated_at' in columns:
+            db.execute('UPDATE qrtotem_coupon_campaigns SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+    if _table_exists(db, 'qrtotem_coupon_redemptions'):
+        columns = _table_info(db, 'qrtotem_coupon_redemptions')
+        if 'updated_at' in columns:
+            db.execute('UPDATE qrtotem_coupon_redemptions SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+    if _table_exists(db, 'qrtotem_referrals'):
+        columns = _table_info(db, 'qrtotem_referrals')
+        if 'updated_at' in columns:
+            db.execute('UPDATE qrtotem_referrals SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+    if _table_exists(db, 'qrtotem_restaurant_credit_distributions'):
+        columns = _table_info(db, 'qrtotem_restaurant_credit_distributions')
+        if 'updated_at' in columns:
+            db.execute('UPDATE qrtotem_restaurant_credit_distributions SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+    if _table_exists(db, 'qrtotem_restaurant_credit_allocations'):
+        columns = _table_info(db, 'qrtotem_restaurant_credit_allocations')
+        if 'updated_at' in columns:
+            db.execute('UPDATE qrtotem_restaurant_credit_allocations SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+    if _table_exists(db, 'orders'):
+        columns = _table_info(db, 'orders')
+
+        if 'updated_at' in columns:
+            db.execute('UPDATE orders SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+    if _table_exists(db, 'restaurant_payment_accounts'):
+        columns = _table_info(db, 'restaurant_payment_accounts')
+
+        if 'updated_at' in columns:
+            db.execute('UPDATE restaurant_payment_accounts SET updated_at = COALESCE(updated_at, ?)', (now,))
+
+
+def init_db(app):
+    @app.teardown_appcontext
+    def _close_db(exception):
+        close_db(exception)
+
+    Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+
+    with app.app_context():
+        db = get_db()
+
+        db.executescript(SCHEMA_SQL)
+
+        migrate_schema(db)
+        _seed_defaults(db)
+        migrate_schema(db)
+        _backfill_timestamps(db)
+        _create_indexes(db)
+
+        db.commit()
