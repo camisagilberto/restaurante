@@ -151,31 +151,25 @@
         </div>
       </div>
 
-      <nav class="category-scroll" aria-label="Categorias de bebidas">
+      <div class="menu-category-columns" aria-label="Categorias de bebidas">
         {% for category in drink_categories %}
-          {% if grouped_products.get(category) %}
-            <a href="#cat-drinks-{{ loop.index }}">{{ category }}</a>
+          {% set items = grouped_products.get(category) %}
+          {% if items %}
+            <section class="menu-category-column" id="cat-drinks-{{ loop.index }}">
+              <div class="menu-category-column-header">
+                <h3>{{ category }}</h3>
+                <span>{{ items|length }} item(ns)</span>
+              </div>
+
+              <div class="menu-column-products">
+                {% for product in items %}
+                  {{ product_card(product) }}
+                {% endfor %}
+              </div>
+            </section>
           {% endif %}
         {% endfor %}
-      </nav>
-
-      {% for category in drink_categories %}
-        {% set items = grouped_products.get(category) %}
-        {% if items %}
-          <section class="section-block menu-category-block" id="cat-drinks-{{ loop.index }}">
-            <div class="section-heading">
-              <h3>{{ category }}</h3>
-              <span class="muted">{{ items|length }} item(ns)</span>
-            </div>
-
-            <div class="product-grid menu-product-list">
-              {% for product in items %}
-                {{ product_card(product) }}
-              {% endfor %}
-            </div>
-          </section>
-        {% endif %}
-      {% endfor %}
+      </div>
     </section>
 
     <section class="menu-group-panel" id="menu-group-food" data-menu-group-panel="food" hidden>
@@ -187,31 +181,25 @@
         </div>
       </div>
 
-      <nav class="category-scroll" aria-label="Categorias de comidas">
+      <div class="menu-category-columns" aria-label="Categorias de comidas">
         {% for category in food_categories %}
-          {% if grouped_products.get(category) %}
-            <a href="#cat-food-{{ loop.index }}">{{ category }}</a>
+          {% set items = grouped_products.get(category) %}
+          {% if items %}
+            <section class="menu-category-column" id="cat-food-{{ loop.index }}">
+              <div class="menu-category-column-header">
+                <h3>{{ category }}</h3>
+                <span>{{ items|length }} item(ns)</span>
+              </div>
+
+              <div class="menu-column-products">
+                {% for product in items %}
+                  {{ product_card(product) }}
+                {% endfor %}
+              </div>
+            </section>
           {% endif %}
         {% endfor %}
-      </nav>
-
-      {% for category in food_categories %}
-        {% set items = grouped_products.get(category) %}
-        {% if items %}
-          <section class="section-block menu-category-block" id="cat-food-{{ loop.index }}">
-            <div class="section-heading">
-              <h3>{{ category }}</h3>
-              <span class="muted">{{ items|length }} item(ns)</span>
-            </div>
-
-            <div class="product-grid menu-product-list">
-              {% for product in items %}
-                {{ product_card(product) }}
-              {% endfor %}
-            </div>
-          </section>
-        {% endif %}
-      {% endfor %}
+      </div>
     </section>
   {% else %}
     {% for category, items in grouped_products.items() %}
