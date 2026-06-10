@@ -186,10 +186,16 @@ def create_order_from_cart(
         unit_price = float(item.get('price') or product['price'])
         addons = item.get('addons') or []
         addon_labels = [str(addon.get('label') or '').strip() for addon in addons if str(addon.get('label') or '').strip()]
+        flavor = item.get('flavor') or {}
+        flavor_label = str(flavor.get('label') or '').strip() if isinstance(flavor, dict) else ''
+        details = []
+        if flavor_label:
+            details.append(f'Sabor: {flavor_label}')
+        details.extend(addon_labels)
         product_name_snapshot = product['name']
 
-        if addon_labels:
-            product_name_snapshot = f"{product['name']} ({'; '.join(addon_labels)})"
+        if details:
+            product_name_snapshot = f"{product['name']} ({'; '.join(details)})"
 
         total += quantity * unit_price
 
