@@ -3199,3 +3199,61 @@ summary:focus-visible {
     --menu-column-width: 78vw;
   }
 }
+
+.product-addons {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(249, 115, 22, .16);
+  border-radius: 18px;
+  background: rgba(249, 115, 22, .05);
+}
+
+.product-addons legend {
+  padding: 0 6px;
+  color: var(--muted-strong);
+  font-size: .82rem;
+  font-weight: 900;
+}
+
+.product-addon-option {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 34px;
+  font-size: .86rem;
+  color: var(--graphite);
+}
+
+.product-addon-option input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: var(--primary);
+}
+
+.product-addon-option strong {
+  white-space: nowrap;
+  color: var(--primary-strong);
+  font-size: .84rem;
+}
+
+.cart-item-addons {
+  margin: 7px 0 0;
+  padding-left: 18px;
+  color: var(--muted-strong);
+  font-size: .88rem;
+  font-weight: 650;
+}
+
+@media (max-width: 760px) {
+  .product-addons {
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .product-addon-option {
+    font-size: .82rem;
+  }
+}
