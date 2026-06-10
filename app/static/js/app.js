@@ -61,11 +61,25 @@
     const groupCards = document.querySelectorAll('[data-menu-group-card]');
     const panels = document.querySelectorAll('[data-menu-group-panel]');
     const backButtons = document.querySelectorAll('[data-menu-back-groups]');
+    const headerSwitch = document.querySelector('[data-menu-header-switch]');
+    const activeLabel = document.querySelector('[data-menu-active-label]');
 
     if (!picker || groupCards.length === 0 || panels.length === 0) return;
 
+    const centerFirstCategory = (panel) => {
+      const scroller = panel?.querySelector('.menu-category-columns');
+      const firstColumn = scroller?.querySelector('.menu-category-column');
+      if (!scroller || !firstColumn) return;
+
+      window.setTimeout(() => {
+        const target = Math.max(0, firstColumn.offsetLeft - ((scroller.clientWidth - firstColumn.clientWidth) / 2));
+        scroller.scrollTo({ left: target, behavior: 'auto' });
+      }, 60);
+    };
+
     const showPicker = () => {
       picker.hidden = false;
+      if (headerSwitch) headerSwitch.hidden = true;
       panels.forEach((panel) => {
         panel.hidden = true;
       });
@@ -74,13 +88,22 @@
 
     const showGroup = (groupName) => {
       picker.hidden = true;
+      let activePanel = null;
+
       panels.forEach((panel) => {
-        panel.hidden = panel.dataset.menuGroupPanel !== groupName;
+        const isActive = panel.dataset.menuGroupPanel === groupName;
+        panel.hidden = !isActive;
+        if (isActive) activePanel = panel;
       });
 
-      const activePanel = document.querySelector(`[data-menu-group-panel="${groupName}"]`);
+      if (activeLabel && activePanel) {
+        activeLabel.textContent = activePanel.dataset.menuGroupLabel || groupName;
+      }
+      if (headerSwitch) headerSwitch.hidden = false;
+
       if (activePanel) {
-        window.scrollTo({ top: activePanel.offsetTop - 16, behavior: 'smooth' });
+        window.scrollTo({ top: activePanel.offsetTop - 12, behavior: 'smooth' });
+        centerFirstCategory(activePanel);
       }
     };
 
