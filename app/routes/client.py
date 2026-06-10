@@ -589,7 +589,10 @@ def _render_client_menu(
 
     cart = get_cart(session) if can_order else []
     cart_total, cart_quantity = totals(cart)
-    cart_quantities = {int(item['product_id']): int(item['quantity']) for item in cart}
+    cart_quantities = {}
+    for item in cart:
+        product_id = int(item['product_id'])
+        cart_quantities[product_id] = cart_quantities.get(product_id, 0) + int(item['quantity'])
     addon_options_by_product = {
         int(product['id']): extract_addon_options(product['description'])
         for product in products
@@ -2193,8 +2196,9 @@ def add_to_cart():
 
     try:
         product_id = parse_positive_int(data.get('product_id'), minimum=1)
-        quantity = parse_positive_int(data.get('quantity'), minimum=1, maximum=99)
+        quantity = parse_positive_int(data.get('quantity'), default=0, minimum=0, maximum=99)
         selected_addon_ids = data.get('addons') or []
+        replace_product_variants = str(data.get('replace_product_variants') or '').lower() in {'1', 'true', 'yes', 'sim'}
     except (TypeError, ValueError):
         message = 'Produto ou quantidade inválidos.'
         if _wants_json():
@@ -2242,19 +2246,29 @@ def add_to_cart():
 
     cart = get_cart(session)
     selected_addons = resolve_selected_addons(product['description'], selected_addon_ids)
-    add_item(cart, product, quantity, selected_addons)
+
+    if replace_product_variants:
+        cart = remove_item(cart, product_id)
+
+    if quantity > 0:
+        add_item(cart, product, quantity, selected_addons)
+    elif not replace_product_variants:
+        cart = remove_item(cart, product_id)
+
     save_cart(session, cart)
     cart_total, cart_quantity = totals(cart)
 
     if _wants_json():
         return jsonify(
             success=True,
-            message='Produto adicionado ao carrinho.',
+            message='Carrinho atualizado.' if quantity > 0 else 'Produto removido do carrinho.',
+            quantity=quantity,
+            removed=quantity == 0,
             cart_quantity=cart_quantity,
             cart_total=cart_total,
         )
 
-    flash('Produto adicionado ao carrinho.', 'success')
+    flash('Carrinho atualizado.' if quantity > 0 else 'Produto removido do carrinho.', 'success')
     return _client_table_redirect(_current_table())
 
 
