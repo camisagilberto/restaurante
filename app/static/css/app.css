@@ -3257,3 +3257,81 @@ summary:focus-visible {
     font-size: .82rem;
   }
 }
+
+/* Organização de produtos por categoria no painel do restaurante */
+.admin-category-list {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-category-block {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface-soft, #fff);
+  padding: 14px;
+}
+
+.admin-category-header {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+}
+
+.admin-category-header h3 {
+  margin: 0;
+}
+
+.admin-list--category-products {
+  gap: 10px;
+}
+
+.admin-product-row {
+  grid-template-columns: 1fr auto;
+}
+
+.admin-product-row .admin-row-main {
+  min-width: 0;
+}
+
+.product-addon-editor {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.product-addon-editor-list {
+  display: grid;
+  gap: 12px;
+}
+
+.product-addon-editor-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 180px);
+}
+
+.section-heading--compact {
+  margin-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  .admin-category-header,
+  .admin-product-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-category-header {
+    flex-direction: column;
+  }
+
+  .product-addon-editor-row {
+    grid-template-columns: 1fr;
+  }
+}
