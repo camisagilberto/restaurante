@@ -82,60 +82,58 @@
   </div>
 
 
-  {% if category_summary %}
-    <div class="category-delete-grid">
-      {% for category in category_summary %}
-        <div class="category-delete-card">
+  <div class="admin-category-list">
+    {% for category in grouped_products %}
+      <section class="admin-category-block">
+        <div class="admin-category-header">
           <div>
-            <strong>{{ category.name }}</strong>
-            <p class="muted">{{ category.count }} produto(s)</p>
+            <h3>{{ category.name }}</h3>
+            <p class="muted">{{ category.products|length }} produto(s)</p>
           </div>
-          <form method="post" action="{{ url_for('admin.delete_products_by_category_route') }}" data-password-confirm="Digite a senha do usuário para excluir todos os produtos desta categoria.">
+          <form method="post" action="{{ url_for('admin.delete_products_by_category_route') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="category" value="{{ category.name }}">
-            <input type="hidden" name="manager_password" value="">
             <button class="btn btn-danger btn-sm" type="submit">Excluir categoria</button>
           </form>
         </div>
-      {% endfor %}
-    </div>
-  {% endif %}
 
-  <div class="admin-list">
-    {% for product in products %}
-      <article class="admin-row {% if not product['active'] %}is-muted{% endif %}">
-        <div class="admin-row-main">
-          <div>
-            <h4>{{ product['name'] }}</h4>
-            <p class="muted">{{ product['category'] }} · {{ product['price']|currency }}</p>
+        <div class="admin-list admin-list--category-products">
+          {% for product in category.products %}
+            <article class="admin-row admin-product-row {% if not product['active'] %}is-muted{% endif %}">
+              <div class="admin-row-main">
+                <div>
+                  <h4>{{ product['name'] }}</h4>
+                  <p class="muted">{{ product['price']|currency }}</p>
 
-            {% if product['description'] %}
-              <p class="product-desc">{{ product['description'] }}</p>
-            {% endif %}
-          </div>
+                  {% if product['description'] %}
+                    <p class="product-desc">{{ product['description'] }}</p>
+                  {% endif %}
+                </div>
 
-          <span class="status-pill {% if product['active'] %}status-success{% else %}status-muted{% endif %}">
-            {{ 'Ativo' if product['active'] else 'Inativo' }}
-          </span>
+                <span class="status-pill {% if product['active'] %}status-success{% else %}status-muted{% endif %}">
+                  {{ 'Ativo' if product['active'] else 'Inativo' }}
+                </span>
+              </div>
+
+              <div class="admin-row-actions">
+                <a class="btn btn-secondary" href="{{ url_for('admin.edit_product', product_id=product['id']) }}">Editar</a>
+
+                <form method="post" action="{{ url_for('admin.toggle_product_route', product_id=product['id']) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-secondary" type="submit">
+                    {{ 'Desativar' if product['active'] else 'Ativar' }}
+                  </button>
+                </form>
+
+                <form method="post" action="{{ url_for('admin.delete_product_route', product_id=product['id']) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn btn-danger" type="submit">Excluir</button>
+                </form>
+              </div>
+            </article>
+          {% endfor %}
         </div>
-
-        <div class="admin-row-actions">
-          <a class="btn btn-secondary" href="{{ url_for('admin.edit_product', product_id=product['id']) }}">Editar</a>
-
-          <form method="post" action="{{ url_for('admin.toggle_product_route', product_id=product['id']) }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-secondary" type="submit">
-              {{ 'Desativar' if product['active'] else 'Ativar' }}
-            </button>
-          </form>
-
-          <form method="post" action="{{ url_for('admin.delete_product_route', product_id=product['id']) }}" data-password-confirm="Digite a senha do usuário para excluir este produto.">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="manager_password" value="">
-            <button class="btn btn-danger" type="submit">Excluir</button>
-          </form>
-        </div>
-      </article>
+      </section>
     {% else %}
       <div class="empty-state">
         <h3>Nenhum produto encontrado</h3>
