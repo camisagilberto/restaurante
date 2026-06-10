@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from uuid import uuid4
 
 from ..utils import parse_positive_int
 
@@ -129,10 +130,27 @@ def _normalize_addons(value) -> list[dict]:
     return addons
 
 
+def _normalize_flavor(value) -> dict | None:
+    if not isinstance(value, dict):
+        return None
+
+    label = str(value.get('label') or '').strip()
+    option_id = str(value.get('id') or _slugify(label)).strip()
+
+    if not label or not option_id:
+        return None
+
+    return {'id': option_id, 'label': label}
+
+
 def line_key_for(product_id: int, addons: list[dict] | None = None) -> str:
     addon_ids = sorted(str(addon.get('id') or '').strip() for addon in (addons or []) if str(addon.get('id') or '').strip())
     suffix = '|'.join(addon_ids)
     return f'{int(product_id)}:{suffix}'
+
+
+def unit_line_key_for(product_id: int) -> str:
+    return f'{int(product_id)}:unit:{uuid4().hex[:12]}'
 
 
 def normalize_cart_item(item: dict) -> dict | None:
@@ -151,6 +169,7 @@ def normalize_cart_item(item: dict) -> dict | None:
         return None
 
     addons = _normalize_addons(item.get('addons', []))
+    flavor = _normalize_flavor(item.get('flavor'))
     base_price = item.get('base_price')
 
     try:
@@ -165,8 +184,10 @@ def normalize_cart_item(item: dict) -> dict | None:
         'base_price': round(max(base_price, 0), 2),
         'quantity': quantity,
         'addons': addons,
+        'flavor': flavor,
+        'unit_configurable': bool(item.get('unit_configurable')),
     }
-    normalized['line_key'] = str(item.get('line_key') or line_key_for(product_id, addons))
+    normalized['line_key'] = str(item.get('line_key') or (unit_line_key_for(product_id) if normalized['unit_configurable'] else line_key_for(product_id, addons)))
 
     return normalized
 
@@ -262,6 +283,66 @@ def add_item(cart: list[dict], product: dict, quantity: int, addons: list[dict] 
         )
 
     return cart
+
+
+def make_unit_item(product: dict, addons: list[dict] | None = None, flavor: dict | None = None, line_key: str | None = None) -> dict:
+    addons = _normalize_addons(addons or [])
+    base_price = float(product['price'])
+    addon_total = sum(float(addon['price']) for addon in addons)
+    return {
+        'product_id': int(product['id']),
+        'line_key': line_key or unit_line_key_for(product['id']),
+        'name': product['name'],
+        'price': round(base_price + addon_total, 2),
+        'base_price': round(base_price, 2),
+        'quantity': 1,
+        'addons': addons,
+        'flavor': _normalize_flavor(flavor),
+        'unit_configurable': True,
+    }
+
+
+def set_product_quantity(cart: list[dict], product: dict, quantity: int, *, unit_configurable: bool = False, default_addons: list[dict] | None = None) -> list[dict]:
+    product_id = int(product['id'])
+    quantity = max(0, int(quantity))
+
+    if not unit_configurable:
+        cart = remove_item(cart, product_id)
+        if quantity > 0:
+            add_item(cart, product, quantity, default_addons or [])
+        return cart
+
+    existing_units = [item for item in cart if int(item['product_id']) == product_id]
+    other_items = [item for item in cart if int(item['product_id']) != product_id]
+    new_units = []
+
+    for index in range(quantity):
+        if index < len(existing_units):
+            current = existing_units[index]
+            current['quantity'] = 1
+            current['unit_configurable'] = True
+            current['line_key'] = current.get('line_key') or unit_line_key_for(product_id)
+            new_units.append(current)
+        else:
+            new_units.append(make_unit_item(product, default_addons or []))
+
+    return other_items + new_units
+
+
+def update_item_options(cart: list[dict], line_key: str, addons: list[dict] | None = None, flavor: dict | None = None) -> tuple[list[dict], bool]:
+    item = find_item(cart, line_key=line_key)
+
+    if not item:
+        return cart, False
+
+    addons = _normalize_addons(addons or [])
+    item['addons'] = addons
+    item['flavor'] = _normalize_flavor(flavor)
+    base_price = float(item.get('base_price') or item.get('price') or 0)
+    item['price'] = round(base_price + sum(float(addon['price']) for addon in addons), 2)
+    item['unit_configurable'] = True
+    item['quantity'] = 1
+    return cart, True
 
 
 def update_item(cart: list[dict], product_id: int | None, quantity: int, line_key: str | None = None) -> tuple[list[dict], bool]:
