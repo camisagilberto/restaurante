@@ -212,8 +212,64 @@
       const removeButton = itemCard.querySelector('[data-cart-remove]');
       const productId = itemCard.dataset.productId;
       const lineKey = itemCard.dataset.lineKey || '';
+      const basePrice = Number(itemCard.dataset.basePrice || 0);
+      const addonInputs = Array.from(itemCard.querySelectorAll('[data-cart-addon]'));
+      const flavorSelect = itemCard.querySelector('[data-cart-flavor]');
+      const unitPriceNode = itemCard.querySelector('[data-cart-unit-price]');
 
       let updateTimer = null;
+      let optionTimer = null;
+
+      const selectedCartAddonIds = () => addonInputs.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
+
+      const selectedCartAddonTotal = () => addonInputs.reduce((total, checkbox) => {
+        return total + (checkbox.checked ? Number(checkbox.dataset.addonPrice || 0) : 0);
+      }, 0);
+
+      const updateCartItemDisplayedPrice = () => {
+        if (!unitPriceNode || !basePrice) return;
+        unitPriceNode.textContent = `R$ ${formatMoney(basePrice + selectedCartAddonTotal())}`;
+      };
+
+      const persistOptions = async () => {
+        setFeedback(itemCard.querySelector('[data-feedback]'), 'Atualizando opções...', 'loading');
+        try {
+          const { response, data } = await requestJSON('/carrinho/atualizar', {
+            product_id: Number(productId),
+            line_key: lineKey,
+            quantity: 1,
+            addons: selectedCartAddonIds(),
+            flavor_id: flavorSelect?.value || '',
+          });
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.message || 'Não foi possível atualizar as opções.');
+          }
+
+          updateCartSummary(data);
+          updateCartItemDisplayedPrice();
+          setFeedback(itemCard.querySelector('[data-feedback]'), 'Opções atualizadas.', 'success');
+        } catch (error) {
+          setFeedback(itemCard.querySelector('[data-feedback]'), error.message || 'Erro ao atualizar.', 'error');
+        } finally {
+          window.setTimeout(() => setFeedback(itemCard.querySelector('[data-feedback]'), '', ''), 1600);
+        }
+      };
+
+      const scheduleOptionUpdate = () => {
+        window.clearTimeout(optionTimer);
+        optionTimer = window.setTimeout(persistOptions, 250);
+      };
+
+      addonInputs.forEach((checkbox) => {
+        checkbox.addEventListener('change', () => {
+          updateCartItemDisplayedPrice();
+          scheduleOptionUpdate();
+        });
+      });
+      flavorSelect?.addEventListener('change', scheduleOptionUpdate);
+      updateCartItemDisplayedPrice();
+
 
       const removeCardIfEmpty = () => {
         const remaining = document.querySelectorAll('[data-cart-item]').length;
@@ -318,6 +374,14 @@
       const paymentMethod = submitButton?.value || 'offline';
       const termsAccepted = form.querySelector('[name="terms_accepted"]')?.checked ? '1' : '';
       const originalButtonText = submitButton.textContent;
+
+      const missingFlavor = Array.from(document.querySelectorAll('[data-cart-flavor]')).find((select) => !select.value);
+      if (missingFlavor) {
+        event.preventDefault();
+        missingFlavor.focus();
+        alert('Escolha o sabor dos produtos antes de finalizar o pedido.');
+        return;
+      }
 
       submitButton.disabled = true;
       submitButton.textContent = 'Enviando pedido...';
@@ -508,6 +572,46 @@
     syncRows();
   }
 
+  function initProductFlavorEditor() {
+    const editor = document.querySelector('[data-product-flavor-editor]');
+    if (!editor) return;
+
+    const countInput = editor.querySelector('[data-flavor-count]');
+    const list = editor.querySelector('[data-flavor-list]');
+    if (!countInput || !list) return;
+
+    const rowTemplate = (index) => {
+      const row = document.createElement('div');
+      row.className = 'product-addon-editor-row';
+      row.dataset.flavorRow = 'true';
+      row.innerHTML = `
+        <div>
+          <label>Sabor ${index}</label>
+          <input type="text" name="flavor_label_${index}" placeholder="Ex.: Abacaxi">
+        </div>
+      `;
+      return row;
+    };
+
+    const syncRows = () => {
+      const target = Math.max(0, Math.min(20, parseInt(countInput.value || '0', 10) || 0));
+      let rows = Array.from(list.querySelectorAll('[data-flavor-row]'));
+
+      rows.forEach((row, index) => {
+        if (index >= target) row.remove();
+      });
+
+      rows = Array.from(list.querySelectorAll('[data-flavor-row]'));
+      for (let index = rows.length + 1; index <= target; index += 1) {
+        list.appendChild(rowTemplate(index));
+      }
+    };
+
+    countInput.addEventListener('input', syncRows);
+    countInput.addEventListener('change', syncRows);
+    syncRows();
+  }
+
   function initKitchenDelete() {
     const deleteButton = document.querySelector('[data-delete-orders]');
     if (!deleteButton) return;
@@ -543,6 +647,7 @@
     initKitchenDelete();
     initCouponCodeConfirm();
     initProductAddonEditor();
+    initProductFlavorEditor();
   });
 })();
 
