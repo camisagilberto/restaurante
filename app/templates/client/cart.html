@@ -20,12 +20,38 @@
     {% if cart %}
       <div class="cart-list">
         {% for item in cart %}
-          <article class="cart-item" data-cart-item data-product-id="{{ item['product_id'] }}" data-line-key="{{ item['line_key'] }}">
+          {% set item_addons = (addon_options_by_product|default({})).get(item['product_id'], []) %}
+          {% set item_flavors = (flavor_options_by_product|default({})).get(item['product_id'], []) %}
+          {% set selected_addon_ids = item.get('addons', [])|map(attribute='id')|list %}
+          {% set selected_flavor_id = item.get('flavor', {}).get('id') if item.get('flavor') else '' %}
+          <article class="cart-item" data-cart-item data-product-id="{{ item['product_id'] }}" data-line-key="{{ item['line_key'] }}" data-base-price="{{ '%.2f'|format(item.get('base_price') or item['price']) }}">
             <div class="cart-item-main">
               <div>
                 <h4>{{ item['name'] }}</h4>
-                <p class="muted">{{ item['price']|currency }} cada</p>
-                {% if item.get('addons') %}
+                <p class="muted"><span data-cart-unit-price>{{ item['price']|currency }}</span> cada</p>
+
+                {% if item_flavors %}
+                  <label class="cart-option-label">Sabor obrigatório</label>
+                  <select class="cart-option-select" data-cart-flavor required>
+                    <option value="">Escolha o sabor</option>
+                    {% for flavor in item_flavors %}
+                      <option value="{{ flavor['id'] }}" {% if selected_flavor_id|string == flavor['id']|string %}selected{% endif %}>{{ flavor['label'] }}</option>
+                    {% endfor %}
+                  </select>
+                {% endif %}
+
+                {% if item_addons %}
+                  <fieldset class="cart-item-options">
+                    <legend>Adicionais desta unidade</legend>
+                    {% for addon in item_addons %}
+                      <label class="product-addon-option">
+                        <input type="checkbox" value="{{ addon['id'] }}" data-cart-addon data-addon-price="{{ '%.2f'|format(addon['price']) }}" {% if addon['id'] in selected_addon_ids %}checked{% endif %}>
+                        <span>{{ addon['label'] }}</span>
+                        <strong>+ {{ addon['price']|currency }}</strong>
+                      </label>
+                    {% endfor %}
+                  </fieldset>
+                {% elif item.get('addons') %}
                   <ul class="cart-item-addons">
                     {% for addon in item['addons'] %}
                       <li>{{ addon['label'] }}: + {{ addon['price']|currency }}</li>
@@ -36,11 +62,15 @@
             </div>
 
             <div class="cart-item-actions">
-              <div class="quantity-control compact">
-                <button type="button" class="icon-btn" data-cart-dec>−</button>
-                <input type="number" min="0" value="{{ item['quantity'] }}" class="qty-input" data-cart-qty>
-                <button type="button" class="icon-btn" data-cart-inc>+</button>
-              </div>
+              {% if item_addons or item_flavors %}
+                <span class="status-pill">1 unidade</span>
+              {% else %}
+                <div class="quantity-control compact">
+                  <button type="button" class="icon-btn" data-cart-dec>−</button>
+                  <input type="number" min="0" value="{{ item['quantity'] }}" class="qty-input" data-cart-qty>
+                  <button type="button" class="icon-btn" data-cart-inc>+</button>
+                </div>
+              {% endif %}
               <button type="button" class="btn btn-danger" data-cart-remove>Remover</button>
               <p class="product-feedback" data-feedback></p>
             </div>
