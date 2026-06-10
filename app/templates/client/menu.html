@@ -91,7 +91,7 @@
 </section>
 
 {% if can_order %}
-<section class="summary-strip">
+<section class="summary-strip menu-summary-strip">
   <div class="summary-card">
     <span class="summary-label">Itens do carrinho</span>
     <strong id="menu-cart-quantity">{{ cart_quantity }}</strong>
@@ -107,6 +107,11 @@
   <p class="muted">Neste restaurante, o QRTotem exibe o cardápio e mantém o acesso às promoções. Carrinho, pedidos e pagamento pelo site ficam desabilitados.</p>
 </section>
 {% endif %}
+
+<div class="menu-header-switch" data-menu-header-switch hidden>
+  <span data-menu-active-label>Grupo</span>
+  <button type="button" data-menu-back-groups>Trocar</button>
+</div>
 
 {% if grouped_products %}
   {% if not is_coupon_page %}
@@ -142,26 +147,18 @@
       </div>
     </section>
 
-    <section class="menu-group-panel" id="menu-group-drinks" data-menu-group-panel="drinks" hidden>
-      <div class="menu-group-topbar">
-        <button type="button" class="btn btn-secondary btn-sm" data-menu-back-groups>← Trocar grupo</button>
-        <div>
-          <p class="eyebrow">Grupo selecionado</p>
-          <h3>Bebidas</h3>
-        </div>
-      </div>
-
+    <section class="menu-group-panel" id="menu-group-drinks" data-menu-group-panel="drinks" data-menu-group-label="Bebidas" hidden>
       <div class="menu-category-columns" aria-label="Categorias de bebidas">
         {% for category in drink_categories %}
           {% set items = grouped_products.get(category) %}
           {% if items %}
             <section class="menu-category-column" id="cat-drinks-{{ loop.index }}">
-              <div class="menu-category-column-header">
+              <div class="menu-category-column-heading">
                 <h3>{{ category }}</h3>
                 <span>{{ items|length }} item(ns)</span>
               </div>
 
-              <div class="menu-column-products">
+              <div class="menu-category-column-products">
                 {% for product in items %}
                   {{ product_card(product) }}
                 {% endfor %}
@@ -172,26 +169,18 @@
       </div>
     </section>
 
-    <section class="menu-group-panel" id="menu-group-food" data-menu-group-panel="food" hidden>
-      <div class="menu-group-topbar">
-        <button type="button" class="btn btn-secondary btn-sm" data-menu-back-groups>← Trocar grupo</button>
-        <div>
-          <p class="eyebrow">Grupo selecionado</p>
-          <h3>Comidas</h3>
-        </div>
-      </div>
-
+    <section class="menu-group-panel" id="menu-group-food" data-menu-group-panel="food" data-menu-group-label="Comidas" hidden>
       <div class="menu-category-columns" aria-label="Categorias de comidas">
         {% for category in food_categories %}
           {% set items = grouped_products.get(category) %}
           {% if items %}
             <section class="menu-category-column" id="cat-food-{{ loop.index }}">
-              <div class="menu-category-column-header">
+              <div class="menu-category-column-heading">
                 <h3>{{ category }}</h3>
                 <span>{{ items|length }} item(ns)</span>
               </div>
 
-              <div class="menu-column-products">
+              <div class="menu-category-column-products">
                 {% for product in items %}
                   {{ product_card(product) }}
                 {% endfor %}
