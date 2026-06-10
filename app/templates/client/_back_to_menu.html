@@ -1,0 +1,4 @@
+{% set back_menu_href = menu_url|default(client_order_url|default(url_for('client.home')), true) %}
+<div class="client-page-top-actions">
+  <a class="btn btn-secondary btn-sm" href="{{ back_menu_href }}">← Voltar ao cardápio</a>
+</div>
