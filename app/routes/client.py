@@ -15,7 +15,18 @@ from ..services.auth_service import (
     update_manager_password,
     verify_manager_password,
 )
-from ..services.cart_service import add_item, clear_cart, find_item, get_cart, remove_item, save_cart, totals, update_item
+from ..services.cart_service import (
+    add_item,
+    clear_cart,
+    extract_addon_options,
+    find_item,
+    get_cart,
+    remove_item,
+    resolve_selected_addons,
+    save_cart,
+    totals,
+    update_item,
+)
 from ..services.catalog_service import list_products, validate_product_payload
 from ..services.menu_import_service import import_menu_uploads
 from ..services.onboarding_service import (
@@ -579,6 +590,10 @@ def _render_client_menu(
     cart = get_cart(session) if can_order else []
     cart_total, cart_quantity = totals(cart)
     cart_quantities = {int(item['product_id']): int(item['quantity']) for item in cart}
+    addon_options_by_product = {
+        int(product['id']): extract_addon_options(product['description'])
+        for product in products
+    }
 
     open_orders_count = 0
     if can_order and not is_client_mirror:
@@ -600,6 +615,7 @@ def _render_client_menu(
         cart_quantity=cart_quantity,
         cart_total=cart_total,
         cart_quantities=cart_quantities,
+        addon_options_by_product=addon_options_by_product,
         open_orders_count=open_orders_count,
         csrf=csrf_token(),
         can_manage_table=can_manage_table,
@@ -2178,6 +2194,7 @@ def add_to_cart():
     try:
         product_id = parse_positive_int(data.get('product_id'), minimum=1)
         quantity = parse_positive_int(data.get('quantity'), minimum=1, maximum=99)
+        selected_addon_ids = data.get('addons') or []
     except (TypeError, ValueError):
         message = 'Produto ou quantidade inválidos.'
         if _wants_json():
@@ -2224,7 +2241,8 @@ def add_to_cart():
         return _client_table_redirect(_current_table())
 
     cart = get_cart(session)
-    add_item(cart, product, quantity)
+    selected_addons = resolve_selected_addons(product['description'], selected_addon_ids)
+    add_item(cart, product, quantity, selected_addons)
     save_cart(session, cart)
     cart_total, cart_quantity = totals(cart)
 
@@ -2243,6 +2261,7 @@ def add_to_cart():
 @client_bp.route('/carrinho/atualizar', methods=['POST'])
 def update_cart():
     data = _payload()
+    line_key = str(data.get('line_key') or '').strip()
 
     try:
         product_id = parse_positive_int(data.get('product_id'), minimum=1)
@@ -2272,12 +2291,12 @@ def update_cart():
 
     cart = get_cart(session)
     old_quantity = 0
-    existing = find_item(cart, product_id)
+    existing = find_item(cart, product_id, line_key=line_key or None)
 
     if existing:
         old_quantity = int(existing['quantity'])
 
-    cart, _ = update_item(cart, product_id, quantity)
+    cart, _ = update_item(cart, product_id, quantity, line_key=line_key or None)
     save_cart(session, cart)    
     cart_total, cart_quantity = totals(cart)
 
@@ -2299,6 +2318,7 @@ def update_cart():
 @client_bp.route('/carrinho/excluir', methods=['POST'])
 def remove_from_cart():
     data = _payload()
+    line_key = str(data.get('line_key') or '').strip()
 
     try:
         product_id = parse_positive_int(data.get('product_id'), minimum=1)
@@ -2327,7 +2347,7 @@ def remove_from_cart():
 
     cart = get_cart(session)
     before_count = len(cart)
-    cart = remove_item(cart, product_id)
+    cart = remove_item(cart, product_id, line_key=line_key or None)
     removed = len(cart) < before_count
     save_cart(session, cart)    
     cart_total, cart_quantity = totals(cart)
