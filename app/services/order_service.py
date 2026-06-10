@@ -183,7 +183,13 @@ def create_order_from_cart(
             continue
 
         quantity = int(item['quantity'])
-        unit_price = float(product['price'])
+        unit_price = float(item.get('price') or product['price'])
+        addons = item.get('addons') or []
+        addon_labels = [str(addon.get('label') or '').strip() for addon in addons if str(addon.get('label') or '').strip()]
+        product_name_snapshot = product['name']
+
+        if addon_labels:
+            product_name_snapshot = f"{product['name']} ({'; '.join(addon_labels)})"
 
         total += quantity * unit_price
 
@@ -201,7 +207,7 @@ def create_order_from_cart(
             (
                 order_id,
                 product['id'],
-                product['name'],
+                product_name_snapshot,
                 quantity,
                 unit_price,
             ),
