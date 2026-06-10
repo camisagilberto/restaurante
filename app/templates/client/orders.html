@@ -5,6 +5,8 @@
 {% set client_actions_mode = 'orders' %}
 {% include 'client/_fixed_actions.html' %}
 
+{% include 'client/_back_to_menu.html' %}
+
 <div id="client-orders-wrapper">
   <div class="orders-grid">
     {% for entry in orders %}
