@@ -24,10 +24,12 @@ from ..services.cart_service import (
     remove_item,
     resolve_selected_addons,
     save_cart,
+    set_product_quantity,
     totals,
     update_item,
+    update_item_options,
 )
-from ..services.catalog_service import addons_by_product, list_product_addons, list_products, validate_product_payload
+from ..services.catalog_service import addons_by_product, flavors_by_product, list_product_addons, list_product_flavors, list_products, validate_product_payload
 from ..services.menu_import_service import import_menu_uploads
 from ..services.onboarding_service import (
     create_restaurant_account,
@@ -595,6 +597,7 @@ def _render_client_menu(
         cart_quantities[product_id] = cart_quantities.get(product_id, 0) + int(item['quantity'])
     product_ids = [int(product['id']) for product in products]
     addon_options_by_product = addons_by_product(db, product_ids)
+    flavor_options_by_product = flavors_by_product(db, product_ids)
 
     # Fallback para produtos antigos que ainda tinham adicionais escritos na descrição.
     # Assim o visual continua funcionando até o restaurante editar/salvar os adicionais no painel.
@@ -624,6 +627,7 @@ def _render_client_menu(
         cart_total=cart_total,
         cart_quantities=cart_quantities,
         addon_options_by_product=addon_options_by_product,
+        flavor_options_by_product=flavor_options_by_product,
         open_orders_count=open_orders_count,
         csrf=csrf_token(),
         can_manage_table=can_manage_table,
@@ -2181,6 +2185,9 @@ def cart():
         return _orders_unavailable_response(profile)
 
     cart_total, cart_quantity = totals(cart_items)
+    product_ids = sorted({int(item['product_id']) for item in cart_items})
+    addon_options_by_product = addons_by_product(db, product_ids)
+    flavor_options_by_product = flavors_by_product(db, product_ids)
     fixed_actions_context = _client_fixed_actions_context(db, restaurant_id)
 
     return render_template(
@@ -2188,6 +2195,8 @@ def cart():
         cart=cart_items,
         cart_total=cart_total,
         cart_quantity=cart_quantity,
+        addon_options_by_product=addon_options_by_product,
+        flavor_options_by_product=flavor_options_by_product,
         table_number=table_number,
         order_payment_mode=_row_get(profile, 'order_payment_mode', 'pay_after'),
         csrf=csrf_token(),
@@ -2253,16 +2262,17 @@ def add_to_cart():
     addon_options = list_product_addons(db, product_id, restaurant_id, active_only=True)
     if not addon_options:
         addon_options = extract_addon_options(product['description'])
+    flavor_options = list_product_flavors(db, product_id, restaurant_id, active_only=True)
 
     selected_ids = {str(value).strip() for value in (selected_addon_ids if isinstance(selected_addon_ids, list) else [selected_addon_ids]) if str(value).strip()}
     selected_addons = [option for option in addon_options if str(option.get('id') or '').strip() in selected_ids]
+    unit_configurable = bool(addon_options or flavor_options)
 
     if replace_product_variants:
-        cart = remove_item(cart, product_id)
-
-    if quantity > 0:
+        cart = set_product_quantity(cart, product, quantity, unit_configurable=unit_configurable, default_addons=selected_addons)
+    elif quantity > 0:
         add_item(cart, product, quantity, selected_addons)
-    elif not replace_product_variants:
+    else:
         cart = remove_item(cart, product_id)
 
     save_cart(session, cart)
@@ -2320,7 +2330,24 @@ def update_cart():
     if existing:
         old_quantity = int(existing['quantity'])
 
-    cart, _ = update_item(cart, product_id, quantity, line_key=line_key or None)
+    selected_addon_ids = data.get('addons') or []
+    flavor_id = str(data.get('flavor_id') or '').strip()
+    if isinstance(selected_addon_ids, str):
+        selected_addon_ids = [selected_addon_ids]
+
+    if line_key and (data.get('addons') is not None or data.get('flavor_id') is not None):
+        addon_options = list_product_addons(db, product_id, int(profile['id']), active_only=True)
+        if not addon_options:
+            product = db.execute('SELECT * FROM products WHERE id = ? AND restaurant_id = ?', (product_id, profile['id'])).fetchone()
+            addon_options = extract_addon_options(product['description']) if product else []
+        selected_ids = {str(value).strip() for value in selected_addon_ids if str(value).strip()}
+        selected_addons = [option for option in addon_options if str(option.get('id') or '').strip() in selected_ids]
+        flavor_options = list_product_flavors(db, product_id, int(profile['id']), active_only=True)
+        selected_flavor = next((option for option in flavor_options if str(option.get('id') or '') == flavor_id), None)
+        cart, _ = update_item_options(cart, line_key, selected_addons, selected_flavor)
+    else:
+        cart, _ = update_item(cart, product_id, quantity, line_key=line_key or None)
+
     save_cart(session, cart)    
     cart_total, cart_quantity = totals(cart)
 
@@ -2431,6 +2458,17 @@ def finalize_order():
             return jsonify(success=False, message=message), 400
         flash(message, 'warning')
         return redirect(url_for('client.cart'))
+
+    product_ids = sorted({int(item['product_id']) for item in cart})
+    flavor_options_by_product = flavors_by_product(db, product_ids)
+    for item in cart:
+        options = flavor_options_by_product.get(int(item['product_id']), [])
+        if options and not (item.get('flavor') or {}).get('id'):
+            message = f"Escolha o sabor de {item['name']} antes de finalizar."
+            if _wants_json():
+                return jsonify(success=False, message=message), 400
+            flash(message, 'warning')
+            return redirect(url_for('client.cart'))
 
     if payment_method != 'offline':
         message = 'Pagamento pelo QR Code está desativado neste piloto. Pague diretamente com o restaurante.'
