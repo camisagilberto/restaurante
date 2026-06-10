@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Pagamento do Pedido #{{ order['id'] }}{% endblock %}
+
+{% block content %}
+{% include 'client/_back_to_menu.html' %}
+
+<section class="hero-card">
+  <div>
+    <p class="eyebrow">Pagamento no restaurante</p>
+    <h2>Pedido #{{ order['id'] }} — Mesa {{ order['table_number'] }}</h2>
+    <p class="muted">Seu pedido foi registrado. Agora procure um garçom para realizar o pagamento.</p>
+  </div>
+</section>
+
+<section class="panel payment-instruction-card">
+  <h3>O que fazer agora?</h3>
+  <p>Avise um garçom que você fez o pedido pelo QR Code e deseja realizar o pagamento da mesa {{ order['table_number'] }}.</p>
+  <p>Após o pagamento ser confirmado pelo atendente, o pedido será enviado para a cozinha.</p>
+
+  <div class="summary-line"><span>Pedido</span><strong>#{{ order['id'] }}</strong></div>
+  <div class="summary-line"><span>Mesa</span><strong>{{ order['table_number'] }}</strong></div>
+  <div class="summary-line"><span>Total</span><strong>{{ order['total_amount']|currency }}</strong></div>
+
+  <a class="btn btn-primary btn-block" href="{{ url_for('client.order_history') }}">Acompanhar pedido</a>
+</section>
+{% endblock %}
