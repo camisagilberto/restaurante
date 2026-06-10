@@ -54,6 +54,45 @@
     updateMenuSummary(data);
   }
 
+
+
+  function initMenuGroups() {
+    const picker = document.querySelector('[data-menu-group-picker]');
+    const groupCards = document.querySelectorAll('[data-menu-group-card]');
+    const panels = document.querySelectorAll('[data-menu-group-panel]');
+    const backButtons = document.querySelectorAll('[data-menu-back-groups]');
+
+    if (!picker || groupCards.length === 0 || panels.length === 0) return;
+
+    const showPicker = () => {
+      picker.hidden = false;
+      panels.forEach((panel) => {
+        panel.hidden = true;
+      });
+      window.scrollTo({ top: picker.offsetTop - 16, behavior: 'smooth' });
+    };
+
+    const showGroup = (groupName) => {
+      picker.hidden = true;
+      panels.forEach((panel) => {
+        panel.hidden = panel.dataset.menuGroupPanel !== groupName;
+      });
+
+      const activePanel = document.querySelector(`[data-menu-group-panel="${groupName}"]`);
+      if (activePanel) {
+        window.scrollTo({ top: activePanel.offsetTop - 16, behavior: 'smooth' });
+      }
+    };
+
+    groupCards.forEach((card) => {
+      card.addEventListener('click', () => showGroup(card.dataset.menuGroupCard));
+    });
+
+    backButtons.forEach((button) => {
+      button.addEventListener('click', showPicker);
+    });
+  }
+
   function initMenu() {
     document.querySelectorAll('[data-product-id]').forEach((card) => {
       const input = card.querySelector('[data-qty-input]');
@@ -389,6 +428,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    initMenuGroups();
     initMenu();
     initCart();
     initTableEditor();
