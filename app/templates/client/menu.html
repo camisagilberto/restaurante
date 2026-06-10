@@ -7,7 +7,8 @@
 {% include 'client/_fixed_actions.html' %}
 
 {% macro product_card(product) %}
-  <article class="product-card menu-product-row {% if is_coupon_page %}product-card--promo{% endif %}" data-product-id="{{ product['id'] }}">
+  {% set addon_options = (addon_options_by_product|default({})).get(product['id'], []) %}
+  <article class="product-card menu-product-row {% if is_coupon_page %}product-card--promo{% endif %}" data-product-id="{{ product['id'] }}" data-base-price="{{ '%.2f'|format(product['price']) }}">
     <div class="product-head">
       <span class="product-card-icon" aria-hidden="true">{% if is_coupon_page %}🎁{% else %}🍽️{% endif %}</span>
       <div class="product-main-info">
@@ -16,7 +17,7 @@
           <p class="muted product-desc">{{ product['description'] }}</p>
         {% endif %}
       </div>
-      <div class="product-price">{{ product['price']|currency }}</div>
+      <div class="product-price" data-product-price>{{ product['price']|currency }}</div>
     </div>
 
     {% if is_coupon_page %}
@@ -24,6 +25,19 @@
         <span class="status-pill status-success">Promoção disponível</span>
         <p class="muted small-text">Oferta especial do restaurante.</p>
       </div>
+    {% endif %}
+
+    {% if addon_options and can_order %}
+      <fieldset class="product-addons">
+        <legend>Adicionais</legend>
+        {% for addon in addon_options %}
+          <label class="product-addon-option">
+            <input type="checkbox" value="{{ addon['id'] }}" data-addon-option data-addon-price="{{ '%.2f'|format(addon['price']) }}">
+            <span>{{ addon['label'] }}</span>
+            <strong>+ {{ addon['price']|currency }}</strong>
+          </label>
+        {% endfor %}
+      </fieldset>
     {% endif %}
 
     {% if can_order %}
