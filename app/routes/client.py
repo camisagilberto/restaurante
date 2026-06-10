@@ -2165,6 +2165,7 @@ def cart():
         cart_total=cart_total,
         cart_quantity=cart_quantity,
         table_number=table_number,
+        order_payment_mode=_row_get(profile, 'order_payment_mode', 'pay_after'),
         csrf=csrf_token(),
         menu_url=_public_menu_url(table_number),
         **fixed_actions_context,
@@ -2377,6 +2378,15 @@ def finalize_order():
     notes = normalize_text(payload.get('notes'))
     customer_name = ''
     payment_method = str(payload.get('payment_method') or 'offline').strip().lower()
+    terms_accepted = str(payload.get('terms_accepted') or '').strip() == '1'
+    order_payment_mode = _row_get(profile, 'order_payment_mode', 'pay_after')
+
+    if not terms_accepted:
+        message = 'Para enviar o pedido, aceite os Termos de Uso e a Política de Privacidade.'
+        if _wants_json():
+            return jsonify(success=False, message=message), 400
+        flash(message, 'warning')
+        return redirect(url_for('client.cart'))
 
     if payment_method != 'offline':
         message = 'Pagamento pelo QR Code está desativado neste piloto. Pague diretamente com o restaurante.'
@@ -2388,6 +2398,8 @@ def finalize_order():
     order_id = None
 
     if payment_method == 'offline':
+        pay_before = order_payment_mode == 'pay_before'
+
         try:
             order_id = create_order_from_cart(
                 db,
@@ -2396,9 +2408,9 @@ def finalize_order():
                 cart,
                 customer_name,
                 notes,
-                payment_required=True,
-                payment_status='pending',
-                payment_provider=OFFLINE_PAYMENT_PROVIDER,
+                payment_required=pay_before,
+                payment_status='pending' if pay_before else 'not_required',
+                payment_provider=OFFLINE_PAYMENT_PROVIDER if pay_before else '',
             )
         except ValidationError as exc:
             message = str(exc)
@@ -2408,8 +2420,17 @@ def finalize_order():
             return redirect(url_for('client.cart'))
 
         clear_cart(session)
+
+        if pay_before:
+            payment_url = url_for('client.offline_payment_instructions', order_id=order_id)
+            message = f'Pedido #{order_id} criado. Procure um garçom para realizar o pagamento.'
+            if _wants_json():
+                return jsonify(success=True, message=message, redirect_url=payment_url)
+            flash(message, 'success')
+            return redirect(payment_url)
+
         orders_url = url_for('client.order_history')
-        message = f'Pedido #{order_id} criado. Aguarde a confirmação do atendente para enviar à cozinha.'
+        message = f'Pedido #{order_id} enviado para a cozinha. O pagamento será tratado pelo restaurante após a finalização.'
         if _wants_json():
             return jsonify(success=True, message=message, redirect_url=orders_url)
         flash(message, 'success')
@@ -2482,6 +2503,32 @@ def finalize_order():
     flash(f'Pedido #{order_id} criado. Pague o Pix para enviar à cozinha.', 'success')
     return redirect(payment_url)
 
+
+
+@client_bp.route('/pedido/<int:order_id>/pagamento-atendente')
+def offline_payment_instructions(order_id: int):
+    restaurant_id = _client_restaurant_id()
+    table_number = _current_table()
+
+    if not restaurant_id:
+        flash('Restaurante não identificado.', 'error')
+        return redirect(url_for('client.home'))
+
+    db = get_db()
+    profile = _current_restaurant_profile(db, restaurant_id)
+    order = get_order_for_payment(db, restaurant_id, order_id, table_number)
+
+    if not profile or not order:
+        flash('Pedido não encontrado.', 'error')
+        return redirect(url_for('client.order_history'))
+
+    return render_template(
+        'client/offline_payment.html',
+        order=order,
+        table_number=table_number,
+        menu_url=_public_menu_url(table_number),
+        csrf=csrf_token(),
+    )
 
 
 @client_bp.route('/pagamento/pedido/<int:order_id>')
