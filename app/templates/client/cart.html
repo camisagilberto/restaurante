@@ -20,11 +20,18 @@
     {% if cart %}
       <div class="cart-list">
         {% for item in cart %}
-          <article class="cart-item" data-cart-item data-product-id="{{ item['product_id'] }}">
+          <article class="cart-item" data-cart-item data-product-id="{{ item['product_id'] }}" data-line-key="{{ item['line_key'] }}">
             <div class="cart-item-main">
               <div>
                 <h4>{{ item['name'] }}</h4>
                 <p class="muted">{{ item['price']|currency }} cada</p>
+                {% if item.get('addons') %}
+                  <ul class="cart-item-addons">
+                    {% for addon in item['addons'] %}
+                      <li>{{ addon['label'] }}: + {{ addon['price']|currency }}</li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
               </div>
             </div>
 
