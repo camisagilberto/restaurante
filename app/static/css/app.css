@@ -2808,3 +2808,201 @@ summary:focus-visible {
   font-size: 0.85rem;
   margin: 0.15rem 0 0;
 }
+
+/* Cardápio do cliente em grupos: Comidas / Bebidas */
+.menu-group-picker,
+.menu-group-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.menu-group-picker[hidden],
+.menu-group-panel[hidden] {
+  display: none !important;
+}
+
+.menu-group-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.menu-group-card {
+  position: relative;
+  min-height: 190px;
+  border: 0;
+  border-radius: 26px;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  background: var(--graphite);
+  color: #FFFFFF;
+  text-align: left;
+  box-shadow: var(--shadow-soft);
+}
+
+.menu-group-card img {
+  width: 100%;
+  height: 100%;
+  min-height: 190px;
+  object-fit: cover;
+  display: block;
+  transition: transform .22s ease;
+}
+
+.menu-group-card:hover img,
+.menu-group-card:focus-visible img {
+  transform: scale(1.04);
+}
+
+.menu-group-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,.1), rgba(0,0,0,.72));
+}
+
+.menu-group-card-content {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: grid;
+  gap: 6px;
+  padding: 22px;
+}
+
+.menu-group-card-content strong {
+  font-size: clamp(1.45rem, 3vw, 2.2rem);
+  line-height: 1;
+  letter-spacing: -0.055em;
+}
+
+.menu-group-card-content small {
+  color: rgba(255,255,255,.84);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.menu-group-topbar {
+  position: sticky;
+  top: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255,255,255,.94);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+}
+
+.menu-group-topbar h3,
+.menu-group-topbar p {
+  margin: 0;
+}
+
+.category-scroll {
+  position: sticky;
+  top: 92px;
+  z-index: 3;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 2px 12px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.category-scroll a {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: var(--graphite);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .06);
+}
+
+.category-scroll a:hover,
+.category-scroll a:focus-visible {
+  border-color: rgba(249, 115, 22, .42);
+  background: var(--primary-soft);
+}
+
+.menu-category-block {
+  scroll-margin-top: 160px;
+}
+
+.product-grid.menu-product-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  overflow: visible;
+}
+
+.menu-product-row {
+  width: 100%;
+}
+
+.menu-product-row .product-head {
+  align-items: center;
+}
+
+.menu-product-row .product-main-info {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .menu-group-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .menu-group-card,
+  .menu-group-card img {
+    min-height: 170px;
+  }
+
+  .menu-group-topbar {
+    align-items: flex-start;
+    flex-direction: column-reverse;
+    top: 8px;
+  }
+
+  .category-scroll {
+    top: 118px;
+    margin-inline: -4px;
+    padding-inline: 4px;
+  }
+
+  .section-block .product-grid.menu-product-list,
+  .product-grid.menu-product-list {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    overflow: visible;
+    padding: 0;
+    scroll-snap-type: none;
+  }
+
+  .section-block .product-grid.menu-product-list .product-card,
+  .product-grid.menu-product-list .product-card {
+    flex: initial;
+    max-width: 100%;
+    min-width: 0;
+    scroll-snap-align: none;
+  }
+
+  .menu-product-row .product-head {
+    align-items: flex-start;
+  }
+}
