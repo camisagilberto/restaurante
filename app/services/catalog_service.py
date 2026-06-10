@@ -303,3 +303,70 @@ def delete_product(db, product_id: int, restaurant_id: int, *, kind: str = 'menu
     _reindex_category(db, restaurant_id, product['category'], kind=kind)
     db.commit()
     return True, 'Produto removido com sucesso.'
+
+
+def delete_products_by_category(db, restaurant_id: int, category: str, *, kind: str = 'menu') -> tuple[int, int, str]:
+    restaurant_id = _require_restaurant_id(restaurant_id)
+    kind = _normalize_kind(kind)
+    category = str(category or '').strip()
+
+    if not category:
+        raise ValidationError('Categoria inválida.')
+
+    products = db.execute(
+        '''
+        SELECT id
+          FROM products
+         WHERE restaurant_id = ?
+           AND category = ?
+           AND kind = ?
+        ''',
+        (restaurant_id, category, kind),
+    ).fetchall()
+
+    if not products:
+        return 0, 0, 'Nenhum produto encontrado nesta categoria.'
+
+    product_ids = [int(row['id']) for row in products]
+    deleted_count = 0
+    deactivated_count = 0
+
+    for product_id in product_ids:
+        used = db.execute(
+            '''
+            SELECT COUNT(*)
+              FROM order_items oi
+              JOIN orders o ON o.id = oi.order_id
+             WHERE oi.product_id = ?
+               AND o.restaurant_id = ?
+            ''',
+            (product_id, restaurant_id),
+        ).fetchone()[0]
+
+        if used:
+            db.execute(
+                '''
+                UPDATE products
+                   SET active = 0,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?
+                   AND restaurant_id = ?
+                   AND kind = ?
+                ''',
+                (product_id, restaurant_id, kind),
+            )
+            deactivated_count += 1
+        else:
+            db.execute(
+                'DELETE FROM products WHERE id = ? AND restaurant_id = ? AND kind = ?',
+                (product_id, restaurant_id, kind),
+            )
+            deleted_count += 1
+
+    _reindex_category(db, restaurant_id, category, kind=kind)
+    db.commit()
+
+    if deactivated_count:
+        return deleted_count, deactivated_count, f'{deleted_count} produto(s) excluído(s) e {deactivated_count} produto(s) desativado(s), pois já aparecem em pedidos históricos.'
+
+    return deleted_count, deactivated_count, f'{deleted_count} produto(s) excluído(s) da categoria {category}.'
