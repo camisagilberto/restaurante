@@ -6,6 +6,42 @@
 {% set qrtotem_url = url_for('client.qrtotem_coupons') %}
 {% include 'client/_fixed_actions.html' %}
 
+{% macro product_card(product) %}
+  <article class="product-card menu-product-row {% if is_coupon_page %}product-card--promo{% endif %}" data-product-id="{{ product['id'] }}">
+    <div class="product-head">
+      <span class="product-card-icon" aria-hidden="true">{% if is_coupon_page %}🎁{% else %}🍽️{% endif %}</span>
+      <div class="product-main-info">
+        <h4>{{ product['name'] }}</h4>
+        {% if product['description'] %}
+          <p class="muted product-desc">{{ product['description'] }}</p>
+        {% endif %}
+      </div>
+      <div class="product-price">{{ product['price']|currency }}</div>
+    </div>
+
+    {% if is_coupon_page %}
+      <div class="coupon-action-box">
+        <span class="status-pill status-success">Promoção disponível</span>
+        <p class="muted small-text">Oferta especial do restaurante.</p>
+      </div>
+    {% endif %}
+
+    {% if can_order %}
+      <div class="quantity-control">
+        <button type="button" class="icon-btn" data-qty-dec aria-label="Diminuir">−</button>
+        <input type="number" min="0" value="{{ (cart_quantities|default({})).get(product['id'], 0) }}" class="qty-input" data-qty-input>
+        <button type="button" class="icon-btn" data-qty-inc aria-label="Aumentar">+</button>
+      </div>
+
+      <button type="button" class="btn btn-primary btn-block" data-add-to-cart>
+        Adicionar ao carrinho
+      </button>
+
+      <p class="product-feedback" data-feedback></p>
+    {% endif %}
+  </article>
+{% endmacro %}
+
 <section class="hero-card hero-card--table client-hub-hero {% if is_coupon_page %}client-hub-hero--compact{% endif %}">
   <div class="hero-card-copy">
     {% if can_order and not is_client_mirror %}
@@ -45,7 +81,7 @@
         {% if is_client_mirror %}
           Esta é a página de cliente sem mesa atrelada. O cardápio exibido aqui é o mesmo usado nos QR Codes das mesas.
         {% elif can_order %}
-          Escolha os itens, ajuste quantidades e finalize quando estiver pronto.
+          Escolha um grupo, navegue pelas categorias e adicione os itens ao carrinho.
         {% else %}
           Consulte o cardápio digital. Para fazer pedidos, fale com a equipe do restaurante.
         {% endif %}
@@ -73,52 +109,126 @@
 {% endif %}
 
 {% if grouped_products %}
-  {% for category, items in grouped_products.items() %}
-    <section class="section-block">
+  {% if not is_coupon_page %}
+    {% set food_categories = ['Combo Burguer', 'Burguer', 'Porções Mistas', 'Porções', 'Lanche Natural', 'Tapioca Salgada', 'Tapioca Doce', 'Saudável'] %}
+    {% set drink_categories = ['Sucos', 'Bebidas', 'Cerveja Long Neck', 'Cerveja 600ml', 'Balde de Cerveja', 'Combos', 'Drinks Prontos', 'Drinks', 'Doses 30ml'] %}
+
+    <section class="menu-group-picker" data-menu-group-picker>
       <div class="section-heading">
-        <h3>{{ category }}</h3>
-        <span class="muted">{{ items|length }} item(ns)</span>
+        <div>
+          <p class="eyebrow">Cardápio</p>
+          <h3>Escolha uma opção</h3>
+        </div>
       </div>
 
-      <div class="product-grid">
-        {% for product in items %}
-          <article class="product-card {% if is_coupon_page %}product-card--promo{% endif %}" data-product-id="{{ product['id'] }}">
-            <div class="product-head">
-              <span class="product-card-icon" aria-hidden="true">{% if is_coupon_page %}🎁{% else %}🍽️{% endif %}</span>
-              <div>
-                <h4>{{ product['name'] }}</h4>
-                {% if product['description'] %}
-                  <p class="muted product-desc">{{ product['description'] }}</p>
-                {% endif %}
-              </div>
-              <div class="product-price">{{ product['price']|currency }}</div>
-            </div>
+      <div class="menu-group-cards">
+        <button type="button" class="menu-group-card" data-menu-group-card="drinks" aria-controls="menu-group-drinks">
+          <img src="{{ url_for('static', filename='img/menu_group_drinks.jpg') }}" alt="Bebidas do cardápio">
+          <span class="menu-group-card-overlay"></span>
+          <span class="menu-group-card-content">
+            <strong>Bebidas</strong>
+            <small>Sucos, refrigerantes, cervejas, drinks e doses</small>
+          </span>
+        </button>
 
-            {% if is_coupon_page %}
-              <div class="coupon-action-box">
-                <span class="status-pill status-success">Promoção disponível</span>
-                <p class="muted small-text">Oferta especial do restaurante.</p>
-              </div>
-            {% endif %}
-
-            {% if can_order %}
-              <div class="quantity-control">
-                <button type="button" class="icon-btn" data-qty-dec aria-label="Diminuir">−</button>
-                <input type="number" min="0" value="{{ (cart_quantities|default({})).get(product['id'], 0) }}" class="qty-input" data-qty-input>
-                <button type="button" class="icon-btn" data-qty-inc aria-label="Aumentar">+</button>
-              </div>
-
-              <button type="button" class="btn btn-primary btn-block" data-add-to-cart>
-                Adicionar ao carrinho
-              </button>
-
-              <p class="product-feedback" data-feedback></p>
-            {% endif %}
-          </article>
-        {% endfor %}
+        <button type="button" class="menu-group-card" data-menu-group-card="food" aria-controls="menu-group-food">
+          <img src="{{ url_for('static', filename='img/menu_group_food.jpg') }}" alt="Comidas do cardápio">
+          <span class="menu-group-card-overlay"></span>
+          <span class="menu-group-card-content">
+            <strong>Comidas</strong>
+            <small>Burguers, porções, tapiocas, lanches e saudáveis</small>
+          </span>
+        </button>
       </div>
     </section>
-  {% endfor %}
+
+    <section class="menu-group-panel" id="menu-group-drinks" data-menu-group-panel="drinks" hidden>
+      <div class="menu-group-topbar">
+        <button type="button" class="btn btn-secondary btn-sm" data-menu-back-groups>← Trocar grupo</button>
+        <div>
+          <p class="eyebrow">Grupo selecionado</p>
+          <h3>Bebidas</h3>
+        </div>
+      </div>
+
+      <nav class="category-scroll" aria-label="Categorias de bebidas">
+        {% for category in drink_categories %}
+          {% if grouped_products.get(category) %}
+            <a href="#cat-drinks-{{ loop.index }}">{{ category }}</a>
+          {% endif %}
+        {% endfor %}
+      </nav>
+
+      {% for category in drink_categories %}
+        {% set items = grouped_products.get(category) %}
+        {% if items %}
+          <section class="section-block menu-category-block" id="cat-drinks-{{ loop.index }}">
+            <div class="section-heading">
+              <h3>{{ category }}</h3>
+              <span class="muted">{{ items|length }} item(ns)</span>
+            </div>
+
+            <div class="product-grid menu-product-list">
+              {% for product in items %}
+                {{ product_card(product) }}
+              {% endfor %}
+            </div>
+          </section>
+        {% endif %}
+      {% endfor %}
+    </section>
+
+    <section class="menu-group-panel" id="menu-group-food" data-menu-group-panel="food" hidden>
+      <div class="menu-group-topbar">
+        <button type="button" class="btn btn-secondary btn-sm" data-menu-back-groups>← Trocar grupo</button>
+        <div>
+          <p class="eyebrow">Grupo selecionado</p>
+          <h3>Comidas</h3>
+        </div>
+      </div>
+
+      <nav class="category-scroll" aria-label="Categorias de comidas">
+        {% for category in food_categories %}
+          {% if grouped_products.get(category) %}
+            <a href="#cat-food-{{ loop.index }}">{{ category }}</a>
+          {% endif %}
+        {% endfor %}
+      </nav>
+
+      {% for category in food_categories %}
+        {% set items = grouped_products.get(category) %}
+        {% if items %}
+          <section class="section-block menu-category-block" id="cat-food-{{ loop.index }}">
+            <div class="section-heading">
+              <h3>{{ category }}</h3>
+              <span class="muted">{{ items|length }} item(ns)</span>
+            </div>
+
+            <div class="product-grid menu-product-list">
+              {% for product in items %}
+                {{ product_card(product) }}
+              {% endfor %}
+            </div>
+          </section>
+        {% endif %}
+      {% endfor %}
+    </section>
+  {% else %}
+    {% for category, items in grouped_products.items() %}
+      <section class="section-block">
+        <div class="section-heading">
+          <h3>{{ category }}</h3>
+          <span class="muted">{{ items|length }} item(ns)</span>
+        </div>
+
+        <div class="product-grid">
+          {% for product in items %}
+            {{ product_card(product) }}
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  {% endif %}
 {% else %}
   <section class="panel empty-state">
     {% if is_coupon_page %}
