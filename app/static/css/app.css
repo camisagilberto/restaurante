@@ -2759,3 +2759,52 @@ summary:focus-visible {
   color: var(--muted) !important;
   font-weight: 700;
 }
+
+.client-page-top-actions {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.terms-checkout-accept {
+  align-items: flex-start;
+  gap: 0.6rem;
+  line-height: 1.35;
+}
+
+.terms-checkout-accept a {
+  font-weight: 800;
+}
+
+.payment-instruction-card {
+  max-width: 720px;
+}
+
+.attendant-payment-note {
+  margin: 0.75rem 0 1rem;
+}
+
+.category-delete-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.category-delete-card {
+  align-items: center;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.9rem;
+}
+
+.category-delete-card strong {
+  display: block;
+}
+
+.category-delete-card .muted {
+  font-size: 0.85rem;
+  margin: 0.15rem 0 0;
+}
