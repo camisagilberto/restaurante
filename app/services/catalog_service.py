@@ -5,6 +5,31 @@ from ..errors import ValidationError
 from ..utils import normalize_text, parse_price
 
 
+def ensure_product_addons_table(db) -> None:
+    """Garante a tabela de adicionais em bancos SQLite já existentes.
+
+    Isso evita erro em ambientes com volume persistente onde o banco foi criado
+    antes da implantação da funcionalidade de adicionais.
+    """
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS product_addons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            price REAL NOT NULL DEFAULT 0 CHECK (price >= 0),
+            active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+    """)
+    db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_product_addons_product_active_sort '
+        'ON product_addons(product_id, active, sort_order)'
+    )
+
+
 def _require_restaurant_id(restaurant_id: int | None) -> int:
     if not restaurant_id:
         raise ValidationError('Restaurante não identificado.')
@@ -70,6 +95,7 @@ def parse_addon_payload(payload: dict) -> list[dict]:
 
 
 def list_product_addons(db, product_id: int, restaurant_id: int | None = None, *, active_only: bool = True) -> list[dict]:
+    ensure_product_addons_table(db)
     sql = """
         SELECT pa.*
           FROM product_addons pa
@@ -90,6 +116,7 @@ def list_product_addons(db, product_id: int, restaurant_id: int | None = None, *
 
 
 def addons_by_product(db, product_ids: list[int], *, active_only: bool = True) -> dict[int, list[dict]]:
+    ensure_product_addons_table(db)
     ids = [int(product_id) for product_id in product_ids if product_id]
     if not ids:
         return {}
@@ -115,6 +142,7 @@ def addons_by_product(db, product_ids: list[int], *, active_only: bool = True) -
 
 
 def replace_product_addons(db, product_id: int, restaurant_id: int, addons: list[dict]) -> None:
+    ensure_product_addons_table(db)
     product = get_product(db, product_id, restaurant_id, kind='menu')
     if not product:
         raise ValidationError('Produto não encontrado.')
