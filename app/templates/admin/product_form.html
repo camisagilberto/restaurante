@@ -37,6 +37,33 @@
       <label>Descrição</label>
       <textarea name="description" rows="4">{{ product['description'] or '' }}</textarea>
     </div>
+
+    <section class="product-addon-editor" data-product-addon-editor>
+      <div class="section-heading section-heading--compact">
+        <div>
+          <h3>Adicionais do produto</h3>
+          <p class="muted">Defina quais adicionais aparecerão para o cliente neste item.</p>
+        </div>
+      </div>
+
+      <label>Quantos adicionais este produto terá?</label>
+      <input type="number" name="addon_count" min="0" max="12" value="{{ addons|length if addons else 0 }}" data-addon-count>
+
+      <div class="product-addon-editor-list" data-addon-list>
+        {% for addon in addons %}
+          <div class="product-addon-editor-row" data-addon-row>
+            <div>
+              <label>Adicional {{ loop.index }}</label>
+              <input type="text" name="addon_label_{{ loop.index }}" value="{{ addon['label'] }}" placeholder="Ex.: Adicional de leite">
+            </div>
+            <div>
+              <label>Valor</label>
+              <input type="text" name="addon_price_{{ loop.index }}" value="{{ '%.2f'|format(addon['price']) }}" placeholder="3,00">
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
     <label class="check-inline"><input type="checkbox" name="active" {% if product['active'] %}checked{% endif %}> Produto ativo</label>
     <button type="submit" class="btn btn-primary">Salvar alterações</button>
   </form>
