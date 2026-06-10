@@ -27,7 +27,7 @@ from ..services.cart_service import (
     totals,
     update_item,
 )
-from ..services.catalog_service import list_products, validate_product_payload
+from ..services.catalog_service import addons_by_product, list_product_addons, list_products, validate_product_payload
 from ..services.menu_import_service import import_menu_uploads
 from ..services.onboarding_service import (
     create_restaurant_account,
@@ -593,10 +593,15 @@ def _render_client_menu(
     for item in cart:
         product_id = int(item['product_id'])
         cart_quantities[product_id] = cart_quantities.get(product_id, 0) + int(item['quantity'])
-    addon_options_by_product = {
-        int(product['id']): extract_addon_options(product['description'])
-        for product in products
-    }
+    product_ids = [int(product['id']) for product in products]
+    addon_options_by_product = addons_by_product(db, product_ids)
+
+    # Fallback para produtos antigos que ainda tinham adicionais escritos na descrição.
+    # Assim o visual continua funcionando até o restaurante editar/salvar os adicionais no painel.
+    for product in products:
+        product_id = int(product['id'])
+        if not addon_options_by_product.get(product_id):
+            addon_options_by_product[product_id] = extract_addon_options(product['description'])
 
     open_orders_count = 0
     if can_order and not is_client_mirror:
@@ -2245,7 +2250,12 @@ def add_to_cart():
         return _client_table_redirect(_current_table())
 
     cart = get_cart(session)
-    selected_addons = resolve_selected_addons(product['description'], selected_addon_ids)
+    addon_options = list_product_addons(db, product_id, restaurant_id, active_only=True)
+    if not addon_options:
+        addon_options = extract_addon_options(product['description'])
+
+    selected_ids = {str(value).strip() for value in (selected_addon_ids if isinstance(selected_addon_ids, list) else [selected_addon_ids]) if str(value).strip()}
+    selected_addons = [option for option in addon_options if str(option.get('id') or '').strip() in selected_ids]
 
     if replace_product_variants:
         cart = remove_item(cart, product_id)
