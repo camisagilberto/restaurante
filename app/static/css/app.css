@@ -2922,9 +2922,9 @@ summary:focus-visible {
 }
 
 .menu-category-column-header {
-  position: sticky;
-  top: 92px;
-  z-index: 3;
+  position: relative;
+  top: auto;
+  z-index: 1;
   min-height: 70px;
   display: flex;
   align-items: flex-start;
@@ -2998,7 +2998,7 @@ summary:focus-visible {
   }
 
   .menu-category-column-header {
-    top: 118px;
+    top: auto;
   }
 
   .menu-product-row .product-head {
