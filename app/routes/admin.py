@@ -15,6 +15,8 @@ from ..services.catalog_service import (
     get_product,
     list_product_addons,
     list_products,
+    parse_addon_payload,
+    replace_product_addons,
     toggle_product,
     update_product,
 )
@@ -372,10 +374,15 @@ def edit_product(product_id):
 
     if request.method == 'POST':
         try:
-            update_product(db, product_id, request.form.to_dict(flat=True), restaurant_id, kind='menu')
+            payload = request.form.to_dict(flat=True)
+            addons = parse_addon_payload(payload)
+            update_product(db, product_id, payload, restaurant_id, kind='menu')
+            replace_product_addons(db, product_id, restaurant_id, addons)
+            db.commit()
             flash('Produto atualizado com sucesso.', 'success')
             return redirect(url_for('admin.products'))
         except ValidationError as exc:
+            db.rollback()
             flash(str(exc), 'error')
 
     addons = list_product_addons(db, product_id, restaurant_id, active_only=False)
