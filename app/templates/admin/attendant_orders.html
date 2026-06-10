@@ -6,7 +6,7 @@
   <div>
     <p class="eyebrow">Pedidos pagos fora do sistema</p>
     <h2>Atendente</h2>
-    <p class="muted">Confirme os pedidos que o cliente escolheu pagar no caixa/garçom antes de enviar para a cozinha.</p>
+    <p class="muted">Quando o cliente escolher pagamento antes, peça ao garçom para ir até a mesa realizar o pagamento. Depois de confirmado, envie o pedido para a cozinha.</p>
   </div>
   <a class="btn btn-secondary" href="{{ url_for('kitchen.orders') }}">Ver cozinha</a>
 </section>
@@ -19,12 +19,17 @@
           <p class="order-id">Pedido #{{ entry.order['id'] }}</p>
           <h3>Mesa {{ entry.order['table_number'] }} — Pedido #{{ entry.order['id'] }}</h3>
         </div>
-        <span class="status-pill status-pending">Aguardando atendente</span>
+        <span class="status-pill status-pending">Aguardando pagamento na mesa</span>
       </div>
 
       <div class="order-meta">
         <span>{{ entry.created_at_display }}</span>
         <strong>{{ entry.order['total_amount']|currency }}</strong>
+      </div>
+
+      <div class="checkout-info-card attendant-payment-note">
+        <strong>Pagamento antes do preparo</strong>
+        <p>Diga ao garçom para ir até a mesa realizar o pagamento. Após feito, clique em <strong>Enviar pedido para cozinha</strong>.</p>
       </div>
 
       {% if entry.order['notes'] %}
@@ -44,7 +49,7 @@
       <div class="status-actions">
         <form method="post" action="{{ url_for('admin.attendant_send_order', order_id=entry.order['id']) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf }}">
-          <button type="submit" class="btn btn-primary">Enviar para cozinha</button>
+          <button type="submit" class="btn btn-primary">Enviar pedido para cozinha</button>
         </form>
         <form method="post" action="{{ url_for('admin.attendant_reject_order', order_id=entry.order['id']) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf }}">
