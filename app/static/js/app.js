@@ -121,12 +121,13 @@
       const input = card.querySelector('[data-qty-input]');
       const dec = card.querySelector('[data-qty-dec]');
       const inc = card.querySelector('[data-qty-inc]');
-      const add = card.querySelector('[data-add-to-cart]');
       const feedback = card.querySelector('[data-feedback]');
       const productId = card.dataset.productId;
       const basePrice = Number(card.dataset.basePrice || 0);
       const priceNode = card.querySelector('[data-product-price]');
       const addonInputs = Array.from(card.querySelectorAll('[data-addon-option]'));
+      let updateTimer = null;
+      let isSaving = false;
 
       const selectedAddonIds = () => addonInputs.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
 
@@ -139,51 +140,64 @@
         priceNode.textContent = `R$ ${formatMoney(basePrice + selectedAddonTotal())}`;
       };
 
-      const sync = (delta) => {
-        const current = parseInt(input?.value || '0', 10) || 0;
-        if (input) {
-          input.value = String(Math.max(0, current + delta));
-        }
-      };
-
-      addonInputs.forEach((checkbox) => checkbox.addEventListener('change', updateDisplayedPrice));
-      updateDisplayedPrice();
-
-      dec?.addEventListener('click', () => sync(-1));
-      inc?.addEventListener('click', () => sync(1));
-
-      add?.addEventListener('click', async () => {
+      const persistQuantity = async () => {
         const quantity = Math.max(0, parseInt(input?.value || '0', 10) || 0);
-
-        if (quantity <= 0) {
-          setFeedback(feedback, 'Selecione pelo menos 1 item.', 'error');
-          window.setTimeout(() => setFeedback(feedback, '', ''), 2500);
-          return;
-        }
-
-        add.disabled = true;
-        setFeedback(feedback, 'Adicionando...', 'loading');
+        isSaving = true;
+        card.dataset.cartSyncing = 'true';
+        setFeedback(feedback, quantity > 0 ? 'Atualizando carrinho...' : 'Removendo do carrinho...', 'loading');
 
         try {
           const { response, data } = await requestJSON('/carrinho/adicionar', {
             product_id: Number(productId),
             quantity,
             addons: selectedAddonIds(),
+            replace_product_variants: true,
           });
 
           if (!response.ok || !data.success) {
-            throw new Error(data.message || 'Falha ao adicionar.');
+            throw new Error(data.message || 'Falha ao atualizar o carrinho.');
           }
 
           updateMenuSummary(data);
-          setFeedback(feedback, data.message || 'Adicionado ao carrinho.', 'success');
+          if (input) input.value = String(data.quantity ?? quantity);
+          setFeedback(feedback, quantity > 0 ? 'Carrinho atualizado.' : '', 'success');
         } catch (error) {
-          setFeedback(feedback, error.message || 'Não foi possível adicionar.', 'error');
+          setFeedback(feedback, error.message || 'Não foi possível atualizar.', 'error');
         } finally {
-          add.disabled = false;
-          window.setTimeout(() => setFeedback(feedback, '', ''), 2500);
+          isSaving = false;
+          card.dataset.cartSyncing = 'false';
+          window.setTimeout(() => {
+            if (!isSaving) setFeedback(feedback, '', '');
+          }, 1400);
         }
+      };
+
+      const schedulePersist = () => {
+        window.clearTimeout(updateTimer);
+        updateTimer = window.setTimeout(persistQuantity, 250);
+      };
+
+      const sync = (delta) => {
+        const current = parseInt(input?.value || '0', 10) || 0;
+        if (input) {
+          input.value = String(Math.max(0, current + delta));
+          schedulePersist();
+        }
+      };
+
+      addonInputs.forEach((checkbox) => {
+        checkbox.addEventListener('change', () => {
+          updateDisplayedPrice();
+          const quantity = Math.max(0, parseInt(input?.value || '0', 10) || 0);
+          if (quantity > 0) schedulePersist();
+        });
       });
+      updateDisplayedPrice();
+
+      dec?.addEventListener('click', () => sync(-1));
+      inc?.addEventListener('click', () => sync(1));
+      input?.addEventListener('change', schedulePersist);
+      input?.addEventListener('blur', schedulePersist);
     });
   }
 
