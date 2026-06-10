@@ -124,6 +124,20 @@
       const add = card.querySelector('[data-add-to-cart]');
       const feedback = card.querySelector('[data-feedback]');
       const productId = card.dataset.productId;
+      const basePrice = Number(card.dataset.basePrice || 0);
+      const priceNode = card.querySelector('[data-product-price]');
+      const addonInputs = Array.from(card.querySelectorAll('[data-addon-option]'));
+
+      const selectedAddonIds = () => addonInputs.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
+
+      const selectedAddonTotal = () => addonInputs.reduce((total, checkbox) => {
+        return total + (checkbox.checked ? Number(checkbox.dataset.addonPrice || 0) : 0);
+      }, 0);
+
+      const updateDisplayedPrice = () => {
+        if (!priceNode || !basePrice) return;
+        priceNode.textContent = `R$ ${formatMoney(basePrice + selectedAddonTotal())}`;
+      };
 
       const sync = (delta) => {
         const current = parseInt(input?.value || '0', 10) || 0;
@@ -131,6 +145,9 @@
           input.value = String(Math.max(0, current + delta));
         }
       };
+
+      addonInputs.forEach((checkbox) => checkbox.addEventListener('change', updateDisplayedPrice));
+      updateDisplayedPrice();
 
       dec?.addEventListener('click', () => sync(-1));
       inc?.addEventListener('click', () => sync(1));
@@ -151,6 +168,7 @@
           const { response, data } = await requestJSON('/carrinho/adicionar', {
             product_id: Number(productId),
             quantity,
+            addons: selectedAddonIds(),
           });
 
           if (!response.ok || !data.success) {
@@ -179,6 +197,7 @@
       const updateButton = itemCard.querySelector('[data-cart-update]');
       const removeButton = itemCard.querySelector('[data-cart-remove]');
       const productId = itemCard.dataset.productId;
+      const lineKey = itemCard.dataset.lineKey || '';
 
       let updateTimer = null;
 
@@ -199,6 +218,7 @@
         try {
           const { response, data } = await requestJSON('/carrinho/atualizar', {
             product_id: Number(productId),
+            line_key: lineKey,
             quantity,
           });
 
@@ -255,6 +275,7 @@
         try {
           const { response, data } = await requestJSON('/carrinho/excluir', {
             product_id: Number(productId),
+            line_key: lineKey,
           });
 
           if (!response.ok || !data.success) {
@@ -281,6 +302,7 @@
       const customerName = form.querySelector('[name="customer_name"]')?.value || '';
       const submitButton = event.submitter || form.querySelector('button[type="submit"]');
       const paymentMethod = submitButton?.value || 'offline';
+      const termsAccepted = form.querySelector('[name="terms_accepted"]')?.checked ? '1' : '';
       const originalButtonText = submitButton.textContent;
 
       submitButton.disabled = true;
@@ -291,6 +313,7 @@
           notes,
           customer_name: customerName,
           payment_method: paymentMethod,
+          terms_accepted: termsAccepted,
         });
 
         if (!response.ok || !data.success) {
