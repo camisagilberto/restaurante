@@ -14,9 +14,12 @@ from ..services.catalog_service import (
     delete_products_by_category,
     get_product,
     list_product_addons,
+    list_product_flavors,
     list_products,
     parse_addon_payload,
+    parse_flavor_payload,
     replace_product_addons,
+    replace_product_flavors,
     toggle_product,
     update_product,
 )
@@ -376,8 +379,10 @@ def edit_product(product_id):
         try:
             payload = request.form.to_dict(flat=True)
             addons = parse_addon_payload(payload)
+            flavors = parse_flavor_payload(payload)
             update_product(db, product_id, payload, restaurant_id, kind='menu')
             replace_product_addons(db, product_id, restaurant_id, addons)
+            replace_product_flavors(db, product_id, restaurant_id, flavors)
             db.commit()
             flash('Produto atualizado com sucesso.', 'success')
             return redirect(url_for('admin.products'))
@@ -386,7 +391,8 @@ def edit_product(product_id):
             flash(str(exc), 'error')
 
     addons = list_product_addons(db, product_id, restaurant_id, active_only=False)
-    return render_template('admin/product_form.html', product=product, addons=addons, csrf=csrf_token())
+    flavors = list_product_flavors(db, product_id, restaurant_id, active_only=False)
+    return render_template('admin/product_form.html', product=product, addons=addons, flavors=flavors, csrf=csrf_token())
 
 
 @admin_bp.route('/produtos/<int:product_id>/toggle', methods=['POST'])
