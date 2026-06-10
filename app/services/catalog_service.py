@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from ..errors import ValidationError
 from ..utils import normalize_text, parse_price
 
@@ -14,6 +15,132 @@ def _require_restaurant_id(restaurant_id: int | None) -> int:
 def _normalize_kind(kind: str | None = 'menu') -> str:
     value = str(kind or 'menu').strip().lower()
     return value if value in {'menu', 'coupon'} else 'menu'
+
+
+def _normalize_addon_label(value: object) -> str:
+    return normalize_text(value)
+
+
+def _addon_field_count(payload: dict) -> int:
+    try:
+        count = int(payload.get('addon_count') or 0)
+    except (TypeError, ValueError):
+        count = 0
+
+    indexes = set()
+    for key in payload.keys():
+        match = re.match(r'addon_label_(\d+)$', str(key))
+        if match:
+            indexes.add(int(match.group(1)))
+
+    return max([count, *indexes], default=0)
+
+
+def parse_addon_payload(payload: dict) -> list[dict]:
+    addons: list[dict] = []
+    seen = set()
+
+    for index in range(1, _addon_field_count(payload) + 1):
+        label = _normalize_addon_label(payload.get(f'addon_label_{index}'))
+        price_raw = payload.get(f'addon_price_{index}')
+
+        if not label and (price_raw is None or str(price_raw).strip() == ''):
+            continue
+
+        if not label:
+            raise ValidationError(f'Informe o nome do adicional {index}.')
+
+        price = parse_price(price_raw)
+        if price <= 0:
+            raise ValidationError(f'Informe um valor maior que zero para o adicional {index}.')
+
+        key = label.casefold()
+        if key in seen:
+            raise ValidationError(f'O adicional "{label}" foi informado mais de uma vez.')
+
+        seen.add(key)
+        addons.append({
+            'label': label,
+            'price': price,
+            'sort_order': len(addons) + 1,
+            'active': 1,
+        })
+
+    return addons
+
+
+def list_product_addons(db, product_id: int, restaurant_id: int | None = None, *, active_only: bool = True) -> list[dict]:
+    sql = """
+        SELECT pa.*
+          FROM product_addons pa
+          JOIN products p ON p.id = pa.product_id
+         WHERE pa.product_id = ?
+    """
+    params: list[object] = [int(product_id)]
+
+    if restaurant_id is not None:
+        sql += ' AND p.restaurant_id = ?'
+        params.append(int(restaurant_id))
+
+    if active_only:
+        sql += ' AND pa.active = 1'
+
+    sql += ' ORDER BY pa.sort_order ASC, pa.id ASC'
+    return [dict(row) for row in db.execute(sql, params).fetchall()]
+
+
+def addons_by_product(db, product_ids: list[int], *, active_only: bool = True) -> dict[int, list[dict]]:
+    ids = [int(product_id) for product_id in product_ids if product_id]
+    if not ids:
+        return {}
+
+    placeholders = ','.join('?' for _ in ids)
+    sql = f"""
+        SELECT *
+          FROM product_addons
+         WHERE product_id IN ({placeholders})
+    """
+    params: list[object] = ids
+
+    if active_only:
+        sql += ' AND active = 1'
+
+    sql += ' ORDER BY product_id ASC, sort_order ASC, id ASC'
+    result: dict[int, list[dict]] = {product_id: [] for product_id in ids}
+
+    for row in db.execute(sql, params).fetchall():
+        result.setdefault(int(row['product_id']), []).append(dict(row))
+
+    return result
+
+
+def replace_product_addons(db, product_id: int, restaurant_id: int, addons: list[dict]) -> None:
+    product = get_product(db, product_id, restaurant_id, kind='menu')
+    if not product:
+        raise ValidationError('Produto não encontrado.')
+
+    db.execute('DELETE FROM product_addons WHERE product_id = ?', (int(product_id),))
+
+    for addon in addons:
+        db.execute(
+            """
+            INSERT INTO product_addons (
+                product_id,
+                label,
+                price,
+                active,
+                sort_order
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                int(product_id),
+                addon['label'],
+                float(addon['price']),
+                int(addon.get('active', 1)),
+                int(addon.get('sort_order', 0)),
+            ),
+        )
 
 
 def list_products(db, restaurant_id: int, *, active_only: bool = False, query: str | None = None, kind: str | None = 'menu'):
