@@ -64,6 +64,29 @@
         {% endfor %}
       </div>
     </section>
+
+    <section class="product-addon-editor" data-product-flavor-editor>
+      <div class="section-heading section-heading--compact">
+        <div>
+          <h3>Sabores obrigatórios</h3>
+          <p class="muted">Use quando o cliente precisar escolher um sabor no carrinho, como sucos, tapiocas ou drinks.</p>
+        </div>
+      </div>
+
+      <label>Quantos sabores este produto terá?</label>
+      <input type="number" name="flavor_count" min="0" max="20" value="{{ flavors|length if flavors else 0 }}" data-flavor-count>
+
+      <div class="product-addon-editor-list" data-flavor-list>
+        {% for flavor in flavors %}
+          <div class="product-addon-editor-row" data-flavor-row>
+            <div>
+              <label>Sabor {{ loop.index }}</label>
+              <input type="text" name="flavor_label_{{ loop.index }}" value="{{ flavor['label'] }}" placeholder="Ex.: Abacaxi">
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
     <label class="check-inline"><input type="checkbox" name="active" {% if product['active'] %}checked{% endif %}> Produto ativo</label>
     <button type="submit" class="btn btn-primary">Salvar alterações</button>
   </form>
