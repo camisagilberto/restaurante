@@ -239,12 +239,115 @@ CREATE TABLE IF NOT EXISTS order_items (
 );
 '''
 
-DEFAULT_PRODUCTS = [
-    ('Hambúrguer Artesanal', 24.90, 'Lanches'),
-    ('Batata Frita', 12.90, 'Acompanhamentos'),
-    ('Refrigerante', 8.00, 'Bebidas'),
-    ('Combo da Casa', 39.90, 'Combos'),
-]
+DEFAULT_PRODUCTS = [('Heineken', 18.99, 'Cerveja 600ml', ''),
+    ('Eisenbahn', 14.99, 'Cerveja 600ml', ''),
+    ('Amstel', 14.99, 'Cerveja 600ml', ''),
+    ('Heineken', 89.9, 'Balde de Cerveja', '600ml — 5 unidades'),
+    ('Eisenbahn', 69.9, 'Balde de Cerveja', '600ml — 5 unidades'),
+    ('Amstel Lager', 69.9, 'Balde de Cerveja', '600ml — 5 unidades'),
+    ('Heineken', 13.99, 'Cerveja Long Neck', ''),
+    ('Heineken Zero', 13.99, 'Cerveja Long Neck', ''),
+    ('Sol', 9.99, 'Cerveja Long Neck', ''),
+    ('Amstel Ultra', 11.99, 'Cerveja Long Neck', ''),
+    ('Amstel Lager', 11.99, 'Cerveja Long Neck', ''),
+    ('Eisenbahn Pilsen', 9.99, 'Cerveja Long Neck', ''),
+    ('Skol Beats', 15.99, 'Drinks Prontos', ''),
+    ('Smirnoff Ice 275ml', 15.99, 'Drinks Prontos', ''),
+    ('Gin SCHW', 11.99, 'Drinks Prontos', ''),
+    ('Gin Tropical Tanqueray', 35.0, 'Drinks', ''),
+    ('Gin Tanqueray + Red Bull', 32.0, 'Drinks', ''),
+    ('Gin Tônica Tanqueray', 30.0, 'Drinks', ''),
+    ('Gin Tônica Beefeater', 30.0, 'Drinks', ''),
+    ('Caipirinha Cachaça', 25.0, 'Drinks', 'Sabores: maracujá, limão, abacaxi ou morango. Drinks com Leite Moça: + R$5,00.'),
+    ('Caipirinha Vodka Absolut', 29.0, 'Drinks', 'Sabores: maracujá, limão, abacaxi ou morango. Drinks com Leite Moça: + R$5,00.'),
+    ('Caipirinha Vodka Smirnoff', 28.0, 'Drinks', 'Sabores: maracujá, limão, abacaxi ou morango. Drinks com Leite Moça: + R$5,00.'),
+    ('Red Label', 285.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Jack Daniels', 389.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Black Label', 399.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Vodka Absolut', 269.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Vodka Smirnoff', 219.0, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Gin Beefeater + Red Bull', 289.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Gin Beefeater + Tropical', 299.0, 'Combos', '4 Red Bull Tropical + 4 gelos de sabor'),
+    ('Gin Tanqueray + Red Bull', 349.9, 'Combos', '4 Red Bull Trad/Zero + 4 gelos de sabor'),
+    ('Gin Tanqueray + Tropical', 349.9, 'Combos', '4 Red Bull Tropical + 4 gelos de sabor'),
+    ('Tequila Ouro', 25.0, 'Doses 30ml', ''),
+    ('Tequila Prata', 25.0, 'Doses 30ml', ''),
+    ('Black Label', 30.0, 'Doses 30ml', ''),
+    ("Jack Daniel's", 25.0, 'Doses 30ml', ''),
+    ('Red Label', 20.0, 'Doses 30ml', ''),
+    ('Licor 43', 30.0, 'Doses 30ml', ''),
+    ('Campari', 20.0, 'Doses 30ml', ''),
+    ('Gin Tanqueray', 20.0, 'Doses 30ml', ''),
+    ('Gin Beefeater', 20.0, 'Doses 30ml', ''),
+    ('Vodka Absolut', 18.99, 'Doses 30ml', ''),
+    ('Vodka Smirnoff', 15.0, 'Doses 30ml', ''),
+    ('Canelinha', 5.0, 'Doses 30ml', ''),
+    ('Fritas', 34.99, 'Porções', ''),
+    ('Fritas (Cheddar + Bacon)', 49.99, 'Porções', ''),
+    ('Calabresa', 34.99, 'Porções', ''),
+    ('Bolinha de Queijo 12un', 39.99, 'Porções', ''),
+    ('Coxinha de Frango 12un', 39.99, 'Porções', ''),
+    ('Isca de Frango', 49.99, 'Porções', ''),
+    ('Frango à Passarinho', 45.99, 'Porções', ''),
+    ('Mini Pastel 12un', 39.99, 'Porções', 'Carne e queijo'),
+    ('Onion Rings', 32.99, 'Porções', ''),
+    ('Calabresa + Fritas', 59.9, 'Porções Mistas', 'Pra dividir com a galera'),
+    ('Frango + Fritas', 62.9, 'Porções Mistas', 'Pra dividir com a galera'),
+    ('Calabresa + Onion Rings', 58.9, 'Porções Mistas', 'Pra dividir com a galera'),
+    ('Frango + Onion Rings', 78.9, 'Porções Mistas', 'Pra dividir com a galera'),
+    ('Guaraná Antarctica 350ml', 6.99, 'Bebidas', ''),
+    ('Coca-Cola Lata 350ml', 6.99, 'Bebidas', ''),
+    ('Coca-Cola Zero Lata 350ml', 6.99, 'Bebidas', ''),
+    ('Sprite Lata 350ml', 6.99, 'Bebidas', ''),
+    ('Fanta Sabores 350ml', 6.99, 'Bebidas', ''),
+    ('Energético RedBull 250ml', 16.99, 'Bebidas', ''),
+    ('Energético RedBull Sabor 250ml', 17.99, 'Bebidas', ''),
+    ('Energético Monster 473ml', 18.99, 'Bebidas', ''),
+    ('Powerade', 8.99, 'Bebidas', ''),
+    ('Del Valle Lata', 6.99, 'Bebidas', ''),
+    ('Guaraviton', 6.5, 'Bebidas', ''),
+    ('Água s/gás 500ml', 3.99, 'Bebidas', ''),
+    ('Água c/gás 500ml', 4.99, 'Bebidas', ''),
+    ('Água s/gás 1,5L', 8.99, 'Bebidas', ''),
+    ('Água Tônica 350ml', 6.99, 'Bebidas', ''),
+    ('Suco Natural 400ml', 16.99, 'Sucos', 'Sabores: laranja, maracujá, abacaxi, manga ou morango. Adicional de leite: R$3,00.'),
+    ('Suco Natural 1L', 24.99, 'Sucos', 'Sabores: laranja, maracujá, abacaxi, manga ou morango. Adicional de leite: R$3,00.'),
+    ('JR10', 49.9, 'Combo Burguer', 'Pão brioche, burger 130g, molho tasty, queijo empanado, batata 150g e refrigerante lata.'),
+    ('Messi', 39.9, 'Combo Burguer', 'Pão brioche, burger 130g, cheddar, cebola caramelizada, bacon em tira, barbecue, batata 150g e refrigerante lata.'),
+    ('CR7', 39.9, 'Combo Burguer', 'Pão brioche, burger 130g, cheddar, alface americano, tomate, cebola roxa, molho tasty, batata 150g e refrigerante lata.'),
+    ('Vini JR', 31.9, 'Combo Burguer', 'Pão brioche, burger 130g, queijo cheddar, batata 150g e refrigerante lata.'),
+    ('Mbappé (Smash)', 35.9, 'Combo Burguer', 'Pão brioche, 2 smash burgers 60g, cheddar cremoso, batata 150g e refrigerante lata.'),
+    ('Neymar', 33.9, 'Combo Burguer', 'Pão brioche, frango crocante, alface americano, queijo cheddar, molho tasty, batata 150g e refrigerante lata.'),
+    ('JR10', 34.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Messi', 29.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('CR7', 28.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Vini JR', 25.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Mbappé (Smash)', 24.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Neymar', 26.9, 'Burguer', 'Adicional cheddar + bacon: R$6,00. Adicional carne smash 60g: R$5,00.'),
+    ('Amanteigada', 9.99, 'Tapioca Salgada', ''),
+    ('Calabresa', 14.99, 'Tapioca Salgada', ''),
+    ('Calabresa c/ Mussarela', 16.99, 'Tapioca Salgada', ''),
+    ('Mussarela', 15.99, 'Tapioca Salgada', ''),
+    ('Frango c/ Catupiry', 17.99, 'Tapioca Salgada', ''),
+    ('Frango c/ Mussarela', 19.99, 'Tapioca Salgada', ''),
+    ('Frango', 14.99, 'Tapioca Salgada', ''),
+    ('Presunto e Queijo', 14.99, 'Tapioca Salgada', ''),
+    ('Mussarela c/ Ovo', 16.99, 'Tapioca Salgada', ''),
+    ('Frango Cremoso', 16.99, 'Tapioca Salgada', 'Frango com requeijão'),
+    ('Mussarela, Tomate e Orégano', 16.99, 'Tapioca Salgada', ''),
+    ('Atum', 19.99, 'Tapioca Salgada', ''),
+    ('Coco', 11.99, 'Tapioca Doce', 'Leite condensado com coco'),
+    ('Morango', 14.99, 'Tapioca Doce', 'Leite condensado com morango'),
+    ('Banana e Canela', 14.99, 'Tapioca Doce', 'Leite condensado com banana e canela'),
+    ('Banana', 12.99, 'Tapioca Doce', 'Leite condensado com banana'),
+    ('Romeu e Julieta', 16.99, 'Tapioca Doce', 'Queijo com goiabada'),
+    ('Sensação', 16.99, 'Tapioca Doce', 'Morango com chocolate'),
+    ('Chocolate com Banana', 15.99, 'Tapioca Doce', ''),
+    ('Chocolate', 14.99, 'Tapioca Doce', ''),
+    ('Frango', 15.99, 'Lanche Natural', ''),
+    ('Simples', 13.99, 'Lanche Natural', ''),
+    ('Omelete', 17.99, 'Saudável', ''),
+    ('Crepioca', 19.99, 'Saudável', '')]
 
 
 def get_db():
@@ -987,6 +1090,85 @@ def _migrate_order_items(db: sqlite3.Connection) -> None:
     _ensure_column(db, 'order_items', 'product_name_snapshot TEXT NOT NULL DEFAULT ""')
 
 
+
+def _seed_default_menu_products(db: sqlite3.Connection, restaurant_id: int) -> None:
+    existing_count = db.execute(
+        "SELECT COUNT(*) FROM products WHERE restaurant_id = ? AND kind = 'menu'",
+        (restaurant_id,),
+    ).fetchone()[0]
+
+    has_jrio_menu = db.execute(
+        """
+        SELECT 1
+          FROM products
+         WHERE restaurant_id = ?
+           AND kind = 'menu'
+           AND category = 'Combo Burguer'
+           AND name = 'JR10'
+         LIMIT 1
+        """,
+        (restaurant_id,),
+    ).fetchone()
+
+    if existing_count and has_jrio_menu:
+        return
+
+    old_default_names = {'Hambúrguer Artesanal', 'Batata Frita', 'Refrigerante', 'Combo da Casa'}
+    if existing_count and not has_jrio_menu:
+        for product_name in old_default_names:
+            row = db.execute(
+                """
+                SELECT id
+                  FROM products
+                 WHERE restaurant_id = ?
+                   AND kind = 'menu'
+                   AND name = ?
+                 LIMIT 1
+                """,
+                (restaurant_id, product_name),
+            ).fetchone()
+            if row:
+                db.execute(
+                    "DELETE FROM products WHERE id = ? AND restaurant_id = ? AND kind = 'menu'",
+                    (row['id'], restaurant_id),
+                )
+
+    category_orders: dict[str, int] = {}
+    for name, price, category, description in DEFAULT_PRODUCTS:
+        exists = db.execute(
+            """
+            SELECT 1
+              FROM products
+             WHERE restaurant_id = ?
+               AND kind = 'menu'
+               AND category = ?
+               AND name = ?
+             LIMIT 1
+            """,
+            (restaurant_id, category, name),
+        ).fetchone()
+        if exists:
+            continue
+
+        category_orders[category] = category_orders.get(category, 0) + 1
+        sort_order = category_orders[category]
+        db.execute(
+            """
+            INSERT INTO products (
+                restaurant_id,
+                name,
+                description,
+                price,
+                category,
+                active,
+                sort_order,
+                kind
+            )
+            VALUES (?, ?, ?, ?, ?, 1, ?, 'menu')
+            """,
+            (restaurant_id, name, description, price, category, sort_order),
+        )
+
 def _seed_defaults(db: sqlite3.Connection) -> None:
     default_admin_username = os.getenv('ADMIN_USERNAME', 'admin')
     default_admin_password = os.getenv('ADMIN_PASSWORD', '123456')
@@ -1001,29 +1183,8 @@ def _seed_defaults(db: sqlite3.Connection) -> None:
     _migrate_restaurant_profiles(db)
     default_restaurant_id = _ensure_default_profile(db)
 
-    if default_restaurant_id and db.execute('SELECT COUNT(*) FROM products').fetchone()[0] == 0:
-        for index, (name, price, category) in enumerate(DEFAULT_PRODUCTS):
-            db.execute(
-                '''
-                INSERT INTO products (
-                    restaurant_id,
-                    name,
-                    price,
-                    category,
-                    active,
-                    sort_order,
-                    kind
-                )
-                VALUES (?, ?, ?, ?, 1, ?, 'menu')
-                ''',
-                (
-                    default_restaurant_id,
-                    name,
-                    price,
-                    category,
-                    index,
-                ),
-            )
+    if default_restaurant_id:
+        _seed_default_menu_products(db, default_restaurant_id)
 
 
 def _create_indexes(db: sqlite3.Connection) -> None:
