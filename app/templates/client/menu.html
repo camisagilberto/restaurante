@@ -54,13 +54,6 @@
   </div>
 </section>
 
-{% if can_order and not is_coupon_page %}
-<section class="panel notice-card">
-  <strong>Sistema em fase de teste</strong>
-  <p class="muted">Neste piloto, o QRTotem não solicita cadastro, e-mail, telefone ou CPF. O pagamento é feito diretamente com o restaurante.</p>
-</section>
-{% endif %}
-
 {% if can_order %}
 <section class="summary-strip">
   <div class="summary-card">
