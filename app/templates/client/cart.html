@@ -5,11 +5,13 @@
 {% set client_actions_mode = 'cart' %}
 {% include 'client/_fixed_actions.html' %}
 
+{% include 'client/_back_to_menu.html' %}
+
 <section class="hero-card">
   <div>
     <p class="eyebrow">Resumo do pedido</p>
     <h2>Mesa {{ table_number }}</h2>
-    <p class="muted">Revise os itens e envie o pedido para confirmação do atendente.</p>
+    <p class="muted">{% if order_payment_mode == 'pay_before' %}Revise os itens. Depois de clicar, procure um garçom para realizar o pagamento.{% else %}Revise os itens e envie o pedido diretamente para a cozinha.{% endif %}</p>
   </div>
 </section>
 
@@ -49,7 +51,11 @@
   <aside class="panel summary-panel">
     <div class="checkout-info-card">
       <strong>Pagamento direto no restaurante</strong>
-      <p>Neste piloto, o QRTotem não realiza pagamento pelo QR Code. O atendente confirma o pedido e o pagamento é feito diretamente com o restaurante.</p>
+      {% if order_payment_mode == 'pay_before' %}
+        <p>Após finalizar, procure um garçom para realizar o pagamento. O atendente enviará o pedido para a cozinha após a confirmação.</p>
+      {% else %}
+        <p>O pedido será enviado diretamente para a cozinha. O pagamento será tratado pelo restaurante após a finalização do pedido.</p>
+      {% endif %}
     </div>
     <h3>Resumo</h3>
     <div class="summary-line"><span>Itens</span><strong id="cart-quantity">{{ cart_quantity }}</strong></div>
@@ -61,8 +67,15 @@
       <label for="notes">Observações</label>
       <textarea id="notes" name="notes" rows="4" placeholder="Ex.: sem cebola, ponto da carne..."></textarea>
 
+      <label class="check-inline terms-checkout-accept">
+        <input type="checkbox" name="terms_accepted" value="1" required>
+        <span>Li e concordo com os <a href="{{ url_for('client.terms_of_use') }}" target="_blank" rel="noopener">Termos de Uso</a> e a <a href="{{ url_for('client.privacy_policy') }}" target="_blank" rel="noopener">Política de Privacidade</a>.</span>
+      </label>
+
       <div class="checkout-actions">
-        <button type="submit" name="payment_method" value="offline" class="btn btn-primary btn-block">Enviar pedido ao atendente</button>
+        <button type="submit" name="payment_method" value="offline" class="btn btn-primary btn-block">
+          {% if order_payment_mode == 'pay_before' %}Fazer o Pagamento{% else %}Enviar pedido para a cozinha{% endif %}
+        </button>
       </div>
 
       <p class="muted form-hint">Revise seu pedido antes de enviar. Em caso de erro ou dúvida, chame um atendente.</p>
