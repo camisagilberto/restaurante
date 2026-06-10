@@ -30,6 +30,26 @@ def ensure_product_addons_table(db) -> None:
     )
 
 
+def ensure_product_flavors_table(db) -> None:
+    """Garante a tabela de sabores em bancos SQLite já existentes."""
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS product_flavors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+    """)
+    db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_product_flavors_product_active_sort '
+        'ON product_flavors(product_id, active, sort_order)'
+    )
+
+
 def _require_restaurant_id(restaurant_id: int | None) -> int:
     if not restaurant_id:
         raise ValidationError('Restaurante não identificado.')
@@ -94,6 +114,45 @@ def parse_addon_payload(payload: dict) -> list[dict]:
     return addons
 
 
+def _flavor_field_count(payload: dict) -> int:
+    try:
+        count = int(payload.get('flavor_count') or 0)
+    except (TypeError, ValueError):
+        count = 0
+
+    indexes = set()
+    for key in payload.keys():
+        match = re.match(r'flavor_label_(\d+)$', str(key))
+        if match:
+            indexes.add(int(match.group(1)))
+
+    return max([count, *indexes], default=0)
+
+
+def parse_flavor_payload(payload: dict) -> list[dict]:
+    flavors: list[dict] = []
+    seen = set()
+
+    for index in range(1, _flavor_field_count(payload) + 1):
+        label = normalize_text(payload.get(f'flavor_label_{index}'))
+
+        if not label:
+            continue
+
+        key = label.casefold()
+        if key in seen:
+            raise ValidationError(f'O sabor "{label}" foi informado mais de uma vez.')
+
+        seen.add(key)
+        flavors.append({
+            'label': label,
+            'sort_order': len(flavors) + 1,
+            'active': 1,
+        })
+
+    return flavors
+
+
 def list_product_addons(db, product_id: int, restaurant_id: int | None = None, *, active_only: bool = True) -> list[dict]:
     ensure_product_addons_table(db)
     sql = """
@@ -139,6 +198,81 @@ def addons_by_product(db, product_ids: list[int], *, active_only: bool = True) -
         result.setdefault(int(row['product_id']), []).append(dict(row))
 
     return result
+
+
+def list_product_flavors(db, product_id: int, restaurant_id: int | None = None, *, active_only: bool = True) -> list[dict]:
+    ensure_product_flavors_table(db)
+    sql = """
+        SELECT pf.*
+          FROM product_flavors pf
+          JOIN products p ON p.id = pf.product_id
+         WHERE pf.product_id = ?
+    """
+    params: list[object] = [int(product_id)]
+
+    if restaurant_id is not None:
+        sql += ' AND p.restaurant_id = ?'
+        params.append(int(restaurant_id))
+
+    if active_only:
+        sql += ' AND pf.active = 1'
+
+    sql += ' ORDER BY pf.sort_order ASC, pf.id ASC'
+    return [dict(row) for row in db.execute(sql, params).fetchall()]
+
+
+def flavors_by_product(db, product_ids: list[int], *, active_only: bool = True) -> dict[int, list[dict]]:
+    ensure_product_flavors_table(db)
+    ids = [int(product_id) for product_id in product_ids if product_id]
+    if not ids:
+        return {}
+
+    placeholders = ','.join('?' for _ in ids)
+    sql = f"""
+        SELECT *
+          FROM product_flavors
+         WHERE product_id IN ({placeholders})
+    """
+    params: list[object] = ids
+
+    if active_only:
+        sql += ' AND active = 1'
+
+    sql += ' ORDER BY product_id ASC, sort_order ASC, id ASC'
+    result: dict[int, list[dict]] = {product_id: [] for product_id in ids}
+
+    for row in db.execute(sql, params).fetchall():
+        result.setdefault(int(row['product_id']), []).append(dict(row))
+
+    return result
+
+
+def replace_product_flavors(db, product_id: int, restaurant_id: int, flavors: list[dict]) -> None:
+    ensure_product_flavors_table(db)
+    product = get_product(db, product_id, restaurant_id, kind='menu')
+    if not product:
+        raise ValidationError('Produto não encontrado.')
+
+    db.execute('DELETE FROM product_flavors WHERE product_id = ?', (int(product_id),))
+
+    for flavor in flavors:
+        db.execute(
+            """
+            INSERT INTO product_flavors (
+                product_id,
+                label,
+                active,
+                sort_order
+            )
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                int(product_id),
+                flavor['label'],
+                int(flavor.get('active', 1)),
+                int(flavor.get('sort_order', 0)),
+            ),
+        )
 
 
 def replace_product_addons(db, product_id: int, restaurant_id: int, addons: list[dict]) -> None:
