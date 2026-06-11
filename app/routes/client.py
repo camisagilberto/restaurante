@@ -2447,10 +2447,17 @@ def finalize_order():
 
     payload = _payload() or {}
     notes = normalize_text(payload.get('notes'))
-    customer_name = ''
+    customer_name = normalize_text(payload.get('customer_name'))
     payment_method = str(payload.get('payment_method') or 'offline').strip().lower()
     terms_accepted = str(payload.get('terms_accepted') or '').strip() == '1'
     order_payment_mode = _row_get(profile, 'order_payment_mode', 'pay_after')
+
+    if not customer_name:
+        message = 'Informe seu nome para identificar o pedido.'
+        if _wants_json():
+            return jsonify(success=False, message=message), 400
+        flash(message, 'warning')
+        return redirect(url_for('client.cart'))
 
     if not terms_accepted:
         message = 'Para enviar o pedido, aceite os Termos de Uso e a Política de Privacidade.'
@@ -2504,12 +2511,12 @@ def finalize_order():
         clear_cart(session)
 
         if pay_before:
-            payment_url = url_for('client.offline_payment_instructions', order_id=order_id)
-            message = f'Pedido #{order_id} criado. Procure um garçom para realizar o pagamento.'
+            orders_url = url_for('client.order_history')
+            message = f'Pedido #{order_id} criado. Procure um garçom para realizar o pagamento. Ele será enviado para a cozinha após a confirmação do atendente.'
             if _wants_json():
-                return jsonify(success=True, message=message, redirect_url=payment_url)
+                return jsonify(success=True, message=message, redirect_url=orders_url)
             flash(message, 'success')
-            return redirect(payment_url)
+            return redirect(orders_url)
 
         orders_url = url_for('client.order_history')
         message = f'Pedido #{order_id} enviado para a cozinha. O pagamento será tratado pelo restaurante após a finalização.'
