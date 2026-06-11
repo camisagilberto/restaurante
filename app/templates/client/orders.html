@@ -10,15 +10,18 @@
 <div id="client-orders-wrapper">
   <div class="orders-grid">
     {% for entry in orders %}
-      <article class="order-card status-{{ entry.order['status'] }}">
+      <article class="order-card status-{{ entry.order['status'] }}{% if entry.order['payment_provider'] == 'offline' and entry.order['payment_status'] == 'pending' %} order-card--waiting-kitchen{% endif %}">
         <div class="order-head">
           <div>
             <p class="order-id">Pedido #{{ entry.order['id'] }}</p>
             <h3>Mesa {{ entry.order['table_number'] }} — Pedido #{{ entry.order['id'] }}</h3>
+            {% if entry.order['customer_name'] %}
+              <p class="muted">Nome: {{ entry.order['customer_name'] }}</p>
+            {% endif %}
           </div>
 
           {% if entry.order['payment_provider'] == 'offline' and entry.order['payment_status'] == 'pending' %}
-            <span class="status-pill status-pending">Aguardando confirmação do atendente</span>
+            <span class="status-pill status-pending">Aguardando envio para a cozinha</span>
           {% elif entry.order['payment_required'] and entry.order['payment_status'] == 'pending' %}
             <span class="status-pill status-pending">Aguardando pagamento</span>
           {% else %}
@@ -39,7 +42,7 @@
 
         {% if entry.order['payment_provider'] == 'offline' and entry.order['payment_status'] == 'pending' %}
           <p class="order-notes order-waiting-note">
-            Seu pedido foi recebido e está aguardando o atendente confirmar para enviar à cozinha.
+            Seu pedido foi recebido. Procure um garçom para realizar o pagamento. Após a confirmação do atendente, ele será enviado para a cozinha.
           </p>
         {% endif %}
 
