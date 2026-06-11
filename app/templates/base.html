@@ -46,7 +46,7 @@
   {% if is_admin_session %}
     {% set client_order_url = url_for('client.client_mirror') %}
   {% elif client_token %}
-    {% set client_order_url = url_for('client.restaurant_table_menu', public_token=client_token, table_number=client_table, qr=1) %}
+    {% set client_order_url = url_for('client.restaurant_table_menu', public_token=client_token, table_number=client_table) %}
   {% else %}
     {% set client_order_url = url_for('client.table_menu', table_number=client_table) %}
   {% endif %}
