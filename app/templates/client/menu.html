@@ -105,6 +105,15 @@
   </div>
 </section>
 
+{% if can_order and table_session_valid %}
+<div
+  data-table-session-guard
+  data-expires-at="{{ table_session_expires_at }}"
+  data-expired-message="Sua sessão da mesa expirou. Escaneie novamente o QR Code da mesa para fazer um novo pedido."
+  hidden
+></div>
+{% endif %}
+
 {% if can_order %}
 <section class="summary-strip menu-summary-strip">
   <div class="summary-card">
