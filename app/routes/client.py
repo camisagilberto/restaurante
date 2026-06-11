@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timedelta
+import io
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 
 from ..db import get_db
 from ..errors import ValidationError
@@ -18,8 +19,6 @@ from ..services.auth_service import (
 from ..services.cart_service import (
     add_item,
     clear_cart,
-    current_client_order_session,
-    ensure_client_order_session,
     extract_addon_options,
     find_item,
     get_cart,
@@ -57,7 +56,14 @@ from ..services.payment_service import (
     humanize_payment_error,
     payment_connection_summary,
 )
-from ..services.table_service import build_qr_code_data_uri, parse_table_count, save_table_count
+from ..services.table_service import (
+    build_qr_code_data_uri,
+    build_qr_codes_pdf_bytes,
+    get_table_by_access_token,
+    list_table_tokens,
+    parse_table_count,
+    save_table_count,
+)
 from ..utils import normalize_text, parse_positive_int
 
 client_bp = Blueprint('client', __name__)
@@ -178,11 +184,9 @@ def _set_table_session_validity(restaurant_id: int | str, table_number: int | st
 
     key = f"{restaurant_id}:{table_number}"
     now = _utcnow()
-    client_session_id = ensure_client_order_session(session, reset=True)
     access[key] = {
         'started_at': _iso(now),
         'expires_at': _iso(now + timedelta(minutes=TABLE_QR_SESSION_MINUTES)),
-        'client_session_id': client_session_id,
     }
     session[TABLE_QR_ACCESS_SESSION_KEY] = access
     session.modified = True
@@ -193,15 +197,7 @@ def _is_table_session_valid(restaurant_id: int | str | None = None, table_number
     table_number = str(table_number or _current_table())
     payload = _table_session_payload(restaurant_id, table_number)
     expires_at = _parse_iso_datetime(payload.get('expires_at'))
-    payload_client_session_id = str(payload.get('client_session_id') or '').strip()
-    current_session_id = str(session.get('client_order_session_id') or '').strip()
-    return bool(
-        expires_at
-        and expires_at > _utcnow()
-        and payload_client_session_id
-        and current_session_id
-        and payload_client_session_id == current_session_id
-    )
+    return bool(expires_at and expires_at > _utcnow())
 
 
 def _table_session_remaining_minutes(restaurant_id: int | str | None = None, table_number: int | str | None = None) -> int:
@@ -625,7 +621,7 @@ def _client_table_redirect(table_number: int | str):
     token = session.get(CLIENT_RESTAURANT_TOKEN_SESSION_KEY) or session.get('restaurant_public_token')
 
     if token:
-        return redirect(url_for('client.restaurant_table_menu', public_token=token, table_number=table_number, qr=1))
+        return redirect(url_for('client.restaurant_table_menu', public_token=token, table_number=table_number))
 
     return redirect(url_for('client.home'))
 
@@ -961,24 +957,33 @@ def tables_setup():
     if request.method == 'POST':
         try:
             table_count = parse_table_count(request.form.get('table_count'))
-            save_table_count(db, session.get('admin_id'), table_count)
+            regenerate_tokens = request.form.get('regenerate_tokens') == '1'
+            save_table_count(
+                db,
+                session.get('admin_id'),
+                table_count,
+                regenerate_tokens=regenerate_tokens,
+            )
         except ValidationError as exc:
             flash(str(exc), 'error')
         else:
             session['restaurant_table_count'] = table_count
             profile['table_count'] = table_count
-            flash(f'{table_count} QR Code(s) de mesa gerado(s) com sucesso.', 'success')
+            if regenerate_tokens:
+                flash(f'{table_count} QR Code(s) regenerado(s) com novos links secretos.', 'success')
+            else:
+                flash(f'{table_count} QR Code(s) de mesa gerado(s) com sucesso.', 'success')
             return redirect(url_for('client.tables_setup'))
 
     table_count = int(profile.get('table_count') or 0)
+    token_rows = list_table_tokens(db, int(profile.get('id') or 0), table_count) if table_count else []
     table_cards = []
 
-    for table_number in range(1, table_count + 1):
+    for row in token_rows:
+        table_number = row['table_number']
         table_url = url_for(
-            'client.restaurant_table_menu',
-            public_token=profile.get('public_token'),
-            table_number=table_number,
-            qr=1,
+            'client.table_qr_entry',
+            access_token=row['access_token'],
             _external=True,
         )
 
@@ -995,7 +1000,66 @@ def tables_setup():
         profile=profile,
         table_count=table_count,
         table_cards=table_cards,
+        pdf_url=url_for('client.tables_qr_pdf') if table_cards else '',
         csrf=csrf_token(),
+    )
+
+
+@client_bp.route('/mesas/qrcodes.pdf')
+@login_required
+def tables_qr_pdf():
+    profile = _restaurant_context()
+
+    if not profile.get('restaurant_name'):
+        return redirect(url_for('client.signup'))
+
+    db = get_db()
+    table_count = int(profile.get('table_count') or 0)
+    token_rows = list_table_tokens(db, int(profile.get('id') or 0), table_count) if table_count else []
+    table_cards = []
+
+    for row in token_rows:
+        table_number = row['table_number']
+        table_url = url_for(
+            'client.table_qr_entry',
+            access_token=row['access_token'],
+            _external=True,
+        )
+        table_cards.append({'number': table_number, 'url': table_url})
+
+    pdf_bytes = build_qr_codes_pdf_bytes(table_cards)
+    filename = 'qrcodes-mesas.pdf'
+
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@client_bp.route('/q/<access_token>')
+def table_qr_entry(access_token):
+    db = get_db()
+    profile = get_table_by_access_token(db, access_token)
+
+    if not profile:
+        flash('QR Code inválido ou desativado. Peça ajuda ao restaurante.', 'error')
+        return redirect(url_for('client.home'))
+
+    table_number = str(profile['table_number'])
+    session['current_table'] = table_number
+    _set_client_restaurant(profile)
+    _clear_coupon_customer_session()
+    _set_table_session_validity(profile['id'], table_number)
+    session[PUBLIC_CLIENT_MODE_SESSION_KEY] = True
+
+    return redirect(
+        url_for(
+            'client.restaurant_table_menu',
+            public_token=profile['public_token'],
+            table_number=table_number,
+        )
     )
 
 
@@ -1593,9 +1657,9 @@ def restaurant_table_menu(public_token, table_number):
     session['current_table'] = table_number
     _set_client_restaurant(profile)
 
-    if request.args.get('qr') == '1':
-        _clear_coupon_customer_session()
-        _set_table_session_validity(profile['id'], table_number)
+    if request.args.get('qr') == '1' or request.args.get('scan'):
+        # Links antigos com ?qr=1 ou parâmetros digitados manualmente não renovam sessão.
+        # A sessão só é criada pelo QR Code novo na rota curta /q/<codigo-secreto>.
         return redirect(url_for('client.restaurant_table_menu', public_token=public_token, table_number=table_number))
 
     session[PUBLIC_CLIENT_MODE_SESSION_KEY] = True
@@ -2243,7 +2307,7 @@ def edit_table():
             success=True,
             message='Mesa atualizada com sucesso.',
             table_number=table_number,
-            redirect_url=url_for('client.restaurant_table_menu', public_token=token, table_number=table_number, qr=1),
+            redirect_url=url_for('client.restaurant_table_menu', public_token=token, table_number=table_number),
         )
 
     flash('Mesa atualizada com sucesso.', 'success')
@@ -2494,9 +2558,6 @@ def remove_from_cart():
     if not _is_full_order_mode(profile):
         return _orders_unavailable_response(profile)
 
-    if not _is_table_session_valid(profile['id'], _current_table()):
-        return _table_session_expired_response()
-
     cart = get_cart(session)
     before_count = len(cart)
     cart = remove_item(cart, product_id, line_key=line_key or None)
@@ -2604,7 +2665,6 @@ def finalize_order():
                 payment_required=pay_before,
                 payment_status='pending' if pay_before else 'not_required',
                 payment_provider=OFFLINE_PAYMENT_PROVIDER if pay_before else '',
-                client_session_id=current_client_order_session(session),
             )
         except ValidationError as exc:
             message = str(exc)
@@ -2649,7 +2709,6 @@ def finalize_order():
             payment_required=True,
             payment_status='pending',
             payment_provider=PROVIDER_MERCADO_PAGO,
-            client_session_id=current_client_order_session(session),
         )
 
         order = get_order_for_payment(db, restaurant_id, order_id, table_number)
