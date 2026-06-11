@@ -73,7 +73,7 @@ CLIENT_RESTAURANT_SESSION_KEY = 'client_restaurant_id'
 CLIENT_RESTAURANT_TOKEN_SESSION_KEY = 'client_restaurant_token'
 PUBLIC_CLIENT_MODE_SESSION_KEY = 'public_client_mode'
 TABLE_QR_ACCESS_SESSION_KEY = 'table_qr_access'
-TABLE_QR_SESSION_MINUTES = 60
+TABLE_QR_SESSION_MINUTES = 1
 
 COUPON_CUSTOMER_RESTAURANT_SESSION_KEY = 'coupon_customer_restaurant_id'
 COUPON_CUSTOMER_ID_SESSION_KEY = 'coupon_customer_id'
