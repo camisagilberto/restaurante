@@ -56,6 +56,25 @@
 
 
 
+
+  function initPrivacyBanner() {
+    const banner = document.querySelector('[data-privacy-banner]');
+    if (!banner) return;
+
+    const storageKey = 'qrtotem_privacy_choice_v1';
+    const currentChoice = window.localStorage.getItem(storageKey);
+    if (currentChoice) return;
+
+    banner.hidden = false;
+
+    banner.querySelectorAll('[data-privacy-choice]').forEach((button) => {
+      button.addEventListener('click', () => {
+        window.localStorage.setItem(storageKey, button.dataset.privacyChoice || 'selected');
+        banner.hidden = true;
+      });
+    });
+  }
+
   function initMenuGroups() {
     const picker = document.querySelector('[data-menu-group-picker]');
     const groupCards = document.querySelectorAll('[data-menu-group-card]');
@@ -375,6 +394,12 @@
       const termsAccepted = form.querySelector('[name="terms_accepted"]')?.checked ? '1' : '';
       const originalButtonText = submitButton.textContent;
 
+      if (!customerName.trim()) {
+        alert('Informe seu nome para identificar o pedido.');
+        form.querySelector('[name="customer_name"]')?.focus();
+        return;
+      }
+
       const missingFlavor = Array.from(document.querySelectorAll('[data-cart-flavor]')).find((select) => !select.value);
       if (missingFlavor) {
         event.preventDefault();
@@ -638,7 +663,8 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    initMenuGroups();
+    initPrivacyBanner();
+  initMenuGroups();
     initMenu();
     initCart();
     initTableEditor();
