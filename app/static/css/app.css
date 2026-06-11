@@ -3441,3 +3441,21 @@ summary:focus-visible {
     border-radius: 28px;
   }
 }
+
+.payment-alert-inline {
+  color: #dc2626;
+  font-weight: 800;
+  margin: 0.5rem 0 0;
+}
+
+.payment-alert-inline strong,
+.payment-waiter-badge {
+  color: #dc2626;
+  font-weight: 900;
+}
+
+.payment-waiter-badge {
+  display: inline-block;
+  margin-left: 0.45rem;
+  white-space: nowrap;
+}
