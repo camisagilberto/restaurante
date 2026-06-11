@@ -6,6 +6,24 @@
 {% set qrtotem_url = url_for('client.qrtotem_coupons') %}
 {% include 'client/_fixed_actions.html' %}
 
+{% if not is_coupon_page and not is_client_mirror %}
+<div class="qr-privacy-banner" data-privacy-banner hidden role="dialog" aria-live="polite" aria-label="Aviso de privacidade">
+  <div class="qr-privacy-banner__content">
+    <h3>Privacidade no QRTotem</h3>
+    <p>Neste piloto, usamos apenas recursos necessários para o funcionamento do cardápio, carrinho e pedidos da mesa. Não solicitamos e-mail, telefone ou CPF.</p>
+    <div class="qr-privacy-banner__links">
+      <a href="{{ url_for('client.privacy_policy') }}" target="_blank" rel="noopener">Política de Privacidade</a>
+      <a href="{{ url_for('client.terms_of_use') }}" target="_blank" rel="noopener">Termos de Uso</a>
+    </div>
+  </div>
+  <div class="qr-privacy-banner__actions">
+    <button type="button" class="btn btn-secondary" data-privacy-choice="reject">Rejeitar tudo</button>
+    <button type="button" class="btn btn-primary" data-privacy-choice="accept">Aceitar tudo</button>
+  </div>
+</div>
+{% endif %}
+
+
 {% macro product_card(product) %}
   {% set addon_options = (addon_options_by_product|default({})).get(product['id'], []) %}
   <article class="product-card menu-product-row {% if is_coupon_page %}product-card--promo{% endif %}" data-product-id="{{ product['id'] }}" data-base-price="{{ '%.2f'|format(product['price']) }}">
