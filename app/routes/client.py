@@ -64,6 +64,8 @@ PENDING_MENU_IMPORT_SESSION_KEY = 'pending_menu_import'
 CLIENT_RESTAURANT_SESSION_KEY = 'client_restaurant_id'
 CLIENT_RESTAURANT_TOKEN_SESSION_KEY = 'client_restaurant_token'
 PUBLIC_CLIENT_MODE_SESSION_KEY = 'public_client_mode'
+TABLE_QR_ACCESS_SESSION_KEY = 'table_qr_access'
+TABLE_QR_SESSION_MINUTES = 60
 
 COUPON_CUSTOMER_RESTAURANT_SESSION_KEY = 'coupon_customer_restaurant_id'
 COUPON_CUSTOMER_ID_SESSION_KEY = 'coupon_customer_id'
@@ -152,6 +154,69 @@ def _payload() -> dict:
 
 def _current_table() -> str:
     return str(session.get('current_table') or '1')
+
+
+def _table_session_payload(restaurant_id: int | str | None, table_number: int | str | None) -> dict:
+    access = session.get(TABLE_QR_ACCESS_SESSION_KEY)
+    if not isinstance(access, dict):
+        return {}
+
+    if not restaurant_id or not table_number:
+        return {}
+
+    key = f"{restaurant_id}:{table_number}"
+    value = access.get(key)
+    return value if isinstance(value, dict) else {}
+
+
+def _set_table_session_validity(restaurant_id: int | str, table_number: int | str) -> None:
+    access = session.get(TABLE_QR_ACCESS_SESSION_KEY)
+    if not isinstance(access, dict):
+        access = {}
+
+    key = f"{restaurant_id}:{table_number}"
+    now = _utcnow()
+    access[key] = {
+        'started_at': _iso(now),
+        'expires_at': _iso(now + timedelta(minutes=TABLE_QR_SESSION_MINUTES)),
+    }
+    session[TABLE_QR_ACCESS_SESSION_KEY] = access
+    session.modified = True
+
+
+def _is_table_session_valid(restaurant_id: int | str | None = None, table_number: int | str | None = None) -> bool:
+    restaurant_id = restaurant_id or _client_restaurant_id()
+    table_number = str(table_number or _current_table())
+    payload = _table_session_payload(restaurant_id, table_number)
+    expires_at = _parse_iso_datetime(payload.get('expires_at'))
+    return bool(expires_at and expires_at > _utcnow())
+
+
+def _table_session_remaining_minutes(restaurant_id: int | str | None = None, table_number: int | str | None = None) -> int:
+    restaurant_id = restaurant_id or _client_restaurant_id()
+    table_number = str(table_number or _current_table())
+    payload = _table_session_payload(restaurant_id, table_number)
+    expires_at = _parse_iso_datetime(payload.get('expires_at'))
+    if not expires_at:
+        return 0
+    remaining = expires_at - _utcnow()
+    return max(0, int(remaining.total_seconds() // 60))
+
+
+def _table_session_expired_response(*, status_code: int = 403):
+    message = 'Sua sessão da mesa expirou. Escaneie novamente o QR Code da mesa para fazer um novo pedido.'
+    clear_cart(session)
+
+    if _wants_json():
+        return jsonify(
+            success=False,
+            message=message,
+            session_expired=True,
+            redirect_url=_public_menu_url(),
+        ), status_code
+
+    flash(message, 'warning')
+    return redirect(_public_menu_url())
 
 
 def _restaurant_context() -> dict:
@@ -573,6 +638,7 @@ def _render_client_menu(
     can_manage_table: bool = False,
     is_client_mirror: bool = False,
     is_coupon_page: bool = False,
+    table_session_valid: bool = True,
 ):
     db = get_db()
 
@@ -584,7 +650,7 @@ def _render_client_menu(
         grouped.setdefault(product['category'] or 'Cardápio', []).append(product)
 
     restaurant_active = _is_restaurant_active(profile)
-    can_order = restaurant_active and _is_full_order_mode(profile)
+    can_order = restaurant_active and _is_full_order_mode(profile) and table_session_valid
 
     if not can_order:
         clear_cart(session)
@@ -641,6 +707,9 @@ def _render_client_menu(
         radar_enabled=fixed_actions_context['radar_enabled'],
         show_radar_flag=show_radar_flag,
         can_order=can_order,
+        table_session_valid=table_session_valid,
+        table_session_minutes=TABLE_QR_SESSION_MINUTES,
+        table_session_remaining_minutes=_table_session_remaining_minutes(profile['id'], table_number) if table_session_valid else 0,
         service_mode=_service_mode_from_profile(profile),
         restaurant_is_active=restaurant_active,
         can_send_promotions=bool(session.get('admin_logged_in') and not _is_public_client_mode() and is_coupon_page and is_client_mirror),
@@ -1514,11 +1583,18 @@ def restaurant_table_menu(public_token, table_number):
 
     if request.args.get('qr') == '1':
         _clear_coupon_customer_session()
+        _set_table_session_validity(profile['id'], table_number)
+        return redirect(url_for('client.restaurant_table_menu', public_token=public_token, table_number=table_number))
 
     session[PUBLIC_CLIENT_MODE_SESSION_KEY] = True
 
     if not _is_restaurant_active(profile):
         return _restaurant_inactive_response(profile)
+
+    table_session_valid = _is_table_session_valid(profile['id'], table_number)
+    if not table_session_valid:
+        clear_cart(session)
+        flash('Sua sessão da mesa expirou. Escaneie novamente o QR Code da mesa para fazer um novo pedido.', 'warning')
 
     return _render_client_menu(
         profile,
@@ -1526,6 +1602,7 @@ def restaurant_table_menu(public_token, table_number):
         can_manage_table=False,
         is_client_mirror=False,
         is_coupon_page=False,
+        table_session_valid=table_session_valid,
     )
 
 
@@ -2184,6 +2261,9 @@ def cart():
     if not _is_full_order_mode(profile):
         return _orders_unavailable_response(profile)
 
+    if not _is_table_session_valid(restaurant_id, table_number):
+        return _table_session_expired_response()
+
     cart_total, cart_quantity = totals(cart_items)
     product_ids = sorted({int(item['product_id']) for item in cart_items})
     addon_options_by_product = addons_by_product(db, product_ids)
@@ -2236,6 +2316,9 @@ def add_to_cart():
 
     if not _is_full_order_mode(profile):
         return _orders_unavailable_response(profile)
+
+    if not _is_table_session_valid(restaurant_id, _current_table()):
+        return _table_session_expired_response()
 
     product = None
     if restaurant_id:
@@ -2322,6 +2405,9 @@ def update_cart():
 
     if not _is_full_order_mode(profile):
         return _orders_unavailable_response(profile)
+
+    if not _is_table_session_valid(profile['id'], _current_table()):
+        return _table_session_expired_response()
 
     cart = get_cart(session)
     old_quantity = 0
@@ -2444,6 +2530,9 @@ def finalize_order():
 
     if not _is_full_order_mode(profile):
         return _orders_unavailable_response(profile)
+
+    if not _is_table_session_valid(restaurant_id, table_number):
+        return _table_session_expired_response()
 
     payload = _payload() or {}
     notes = normalize_text(payload.get('notes'))
