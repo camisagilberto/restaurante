@@ -101,6 +101,9 @@
       <input type="hidden" name="csrf_token" value="{{ csrf }}">
       <input type="hidden" name="table_number" value="{{ table_number }}">
 
+      <label for="customer_name">Nome</label>
+      <input id="customer_name" name="customer_name" type="text" required maxlength="80" autocomplete="name" placeholder="Digite seu nome para identificar o pedido">
+
       <label for="notes">Observações</label>
       <textarea id="notes" name="notes" rows="4" placeholder="Ex.: sem cebola, ponto da carne..."></textarea>
 
