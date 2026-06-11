@@ -154,6 +154,7 @@ def create_order_from_cart(
     payment_required: bool = False,
     payment_status: str = 'not_required',
     payment_provider: str = '',
+    client_session_id: str = '',
 ) -> int:
     restaurant_id = _require_restaurant_id(restaurant_id)
     now = _now_iso()
@@ -174,10 +175,11 @@ def create_order_from_cart(
             payment_required,
             payment_status,
             payment_provider,
+            client_session_id,
             created_at,
             updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''',
         (
             restaurant_id,
@@ -189,6 +191,7 @@ def create_order_from_cart(
             1 if payment_required else 0,
             payment_status,
             str(payment_provider or ''),
+            str(client_session_id or ''),
             now,
             now,
         ),
