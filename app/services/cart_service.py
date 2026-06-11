@@ -15,21 +15,49 @@ _ADDON_PATTERN = re.compile(
 )
 
 
-def _cart_scope(session) -> tuple[str | None, str | None]:
+CLIENT_ORDER_SESSION_KEY = 'client_order_session_id'
+
+
+def _cart_scope(session) -> tuple[str | None, str | None, str | None]:
     restaurant_id = session.get('client_restaurant_id') or session.get('restaurant_id')
     table_number = session.get('current_table') or '1'
+    client_session_id = session.get(CLIENT_ORDER_SESSION_KEY)
 
     restaurant_id = str(restaurant_id).strip() if restaurant_id else None
     table_number = str(table_number).strip() if table_number else None
+    client_session_id = str(client_session_id).strip() if client_session_id else None
 
-    return restaurant_id, table_number
+    return restaurant_id, table_number, client_session_id
+
+
+def ensure_client_order_session(session, *, reset: bool = False) -> str:
+    """Ensure each browser/QR visit has its own cart scope.
+
+    Two people can scan the same table QR code at the same time; each browser
+    receives a different session id, so their carts do not mix before checkout.
+    """
+    current = str(session.get(CLIENT_ORDER_SESSION_KEY) or '').strip()
+
+    if reset or not current:
+        current = uuid4().hex
+        session[CLIENT_ORDER_SESSION_KEY] = current
+        session.modified = True
+
+    return current
+
+
+def current_client_order_session(session) -> str:
+    return ensure_client_order_session(session)
 
 
 def cart_key(session) -> str:
-    restaurant_id, table_number = _cart_scope(session)
+    restaurant_id, table_number, client_session_id = _cart_scope(session)
+
+    if restaurant_id and table_number and client_session_id:
+        return f'{CART_PREFIX}:{restaurant_id}:{table_number}:{client_session_id}'
 
     if restaurant_id and table_number:
-        return f'{CART_PREFIX}:{restaurant_id}:{table_number}'
+        return f'{CART_PREFIX}:{restaurant_id}:{table_number}:anonymous'
 
     return LEGACY_CART_KEY
 
@@ -195,12 +223,6 @@ def normalize_cart_item(item: dict) -> dict | None:
 def get_cart(session) -> list[dict]:
     key = cart_key(session)
     raw = session.get(key)
-
-    if raw is None and key != LEGACY_CART_KEY and session.get(LEGACY_CART_KEY):
-        raw = session.get(LEGACY_CART_KEY, [])
-        session[key] = raw
-        session.pop(LEGACY_CART_KEY, None)
-        session.modified = True
 
     raw = raw or []
     cart = []
