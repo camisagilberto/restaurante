@@ -26,12 +26,13 @@
       <div class="table-count-help">
         <span class="summary-label">Como funciona</span>
         <strong>1 mesa = 1 QR Code exclusivo</strong>
-        <p class="muted">Exemplo: a mesa 1 abre o link da mesa 1; a mesa 2 abre o link da mesa 2.</p>
+        <p class="muted">Exemplo: a mesa 1 abre um link curto secreto; depois de acessar, o cliente é redirecionado para o cardápio sem o código secreto na URL.</p>
       </div>
     </div>
 
     <div class="status-actions">
       <button type="submit" class="btn btn-primary">Gerar / atualizar QR Codes</button>
+      <button type="submit" name="regenerate_tokens" value="1" class="btn btn-secondary" onclick="return confirm('Isso vai gerar novos links secretos e os QR Codes antigos deixarão de funcionar. Deseja continuar?')">Regenerar links secretos</button>
     </div>
   </form>
 </section>
@@ -41,8 +42,11 @@
   <div class="section-heading">
     <div>
       <h3>QR Codes gerados</h3>
-      <p class="muted">Imprima ou salve cada QR Code e coloque na mesa correspondente.</p>
+      <p class="muted">Imprima ou salve cada QR Code e coloque na mesa correspondente. Os links usam códigos curtos secretos e redirecionam o cliente para o cardápio sem expor o código na URL final.</p>
     </div>
+    {% if pdf_url %}
+      <a class="btn btn-primary" href="{{ pdf_url }}">Baixar todos em PDF</a>
+    {% endif %}
   </div>
 
   <div class="qr-grid">
@@ -55,7 +59,7 @@
 
         <img class="qr-image" src="{{ table.qr_data_uri }}" alt="QR Code da mesa {{ table.number }}">
 
-        <p class="qr-url">{{ table.url }}</p>
+        <p class="qr-url">Link curto seguro: {{ table.url }}</p>
 
         <div class="status-actions">
           <a class="btn btn-secondary btn-block" href="{{ table.qr_data_uri }}" download="mesa-{{ table.number }}-qrcode.png">Baixar QR</a>
