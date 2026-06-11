@@ -18,6 +18,8 @@ from ..services.auth_service import (
 from ..services.cart_service import (
     add_item,
     clear_cart,
+    current_client_order_session,
+    ensure_client_order_session,
     extract_addon_options,
     find_item,
     get_cart,
@@ -176,9 +178,11 @@ def _set_table_session_validity(restaurant_id: int | str, table_number: int | st
 
     key = f"{restaurant_id}:{table_number}"
     now = _utcnow()
+    client_session_id = ensure_client_order_session(session, reset=True)
     access[key] = {
         'started_at': _iso(now),
         'expires_at': _iso(now + timedelta(minutes=TABLE_QR_SESSION_MINUTES)),
+        'client_session_id': client_session_id,
     }
     session[TABLE_QR_ACCESS_SESSION_KEY] = access
     session.modified = True
@@ -189,7 +193,15 @@ def _is_table_session_valid(restaurant_id: int | str | None = None, table_number
     table_number = str(table_number or _current_table())
     payload = _table_session_payload(restaurant_id, table_number)
     expires_at = _parse_iso_datetime(payload.get('expires_at'))
-    return bool(expires_at and expires_at > _utcnow())
+    payload_client_session_id = str(payload.get('client_session_id') or '').strip()
+    current_session_id = str(session.get('client_order_session_id') or '').strip()
+    return bool(
+        expires_at
+        and expires_at > _utcnow()
+        and payload_client_session_id
+        and current_session_id
+        and payload_client_session_id == current_session_id
+    )
 
 
 def _table_session_remaining_minutes(restaurant_id: int | str | None = None, table_number: int | str | None = None) -> int:
@@ -2482,6 +2494,9 @@ def remove_from_cart():
     if not _is_full_order_mode(profile):
         return _orders_unavailable_response(profile)
 
+    if not _is_table_session_valid(profile['id'], _current_table()):
+        return _table_session_expired_response()
+
     cart = get_cart(session)
     before_count = len(cart)
     cart = remove_item(cart, product_id, line_key=line_key or None)
@@ -2589,6 +2604,7 @@ def finalize_order():
                 payment_required=pay_before,
                 payment_status='pending' if pay_before else 'not_required',
                 payment_provider=OFFLINE_PAYMENT_PROVIDER if pay_before else '',
+                client_session_id=current_client_order_session(session),
             )
         except ValidationError as exc:
             message = str(exc)
@@ -2633,6 +2649,7 @@ def finalize_order():
             payment_required=True,
             payment_status='pending',
             payment_provider=PROVIDER_MERCADO_PAGO,
+            client_session_id=current_client_order_session(session),
         )
 
         order = get_order_for_payment(db, restaurant_id, order_id, table_number)
