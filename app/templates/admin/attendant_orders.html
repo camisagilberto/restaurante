@@ -18,6 +18,9 @@
         <div>
           <p class="order-id">Pedido #{{ entry.order['id'] }}</p>
           <h3>Mesa {{ entry.order['table_number'] }} — Pedido #{{ entry.order['id'] }}</h3>
+          {% if entry.order['customer_name'] %}
+            <p class="muted">Nome: {{ entry.order['customer_name'] }}</p>
+          {% endif %}
         </div>
         <span class="status-pill status-pending">Aguardando pagamento na mesa</span>
       </div>
