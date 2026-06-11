@@ -54,6 +54,60 @@
     updateMenuSummary(data);
   }
 
+  function parseServerDate(value) {
+    if (!value) return null;
+    const normalized = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value) ? value : `${value}Z`;
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  function tableSessionGuard() {
+    return document.querySelector('[data-table-session-guard]');
+  }
+
+  function tableSessionExpired() {
+    const guard = tableSessionGuard();
+    if (!guard) return false;
+    const expiresAt = parseServerDate(guard.dataset.expiresAt || '');
+    return !expiresAt || Date.now() >= expiresAt.getTime();
+  }
+
+  function tableSessionExpiredMessage() {
+    const guard = tableSessionGuard();
+    return guard?.dataset.expiredMessage || 'Sua sessão da mesa expirou. Escaneie novamente o QR Code da mesa para fazer um novo pedido.';
+  }
+
+  function disableOrderingBecauseSessionExpired() {
+    if (!tableSessionExpired()) return false;
+
+    document.querySelectorAll('[data-qty-dec], [data-qty-inc], [data-qty-input], [data-cart-dec], [data-cart-inc], [data-cart-qty], [data-cart-remove], [data-cart-update], [data-cart-addon], [data-cart-flavor], #finalize-order-form button[type="submit"]').forEach((node) => {
+      node.disabled = true;
+    });
+
+    document.querySelectorAll('[data-feedback]').forEach((node) => {
+      if (!node.textContent) setFeedback(node, tableSessionExpiredMessage(), 'error');
+    });
+
+    return true;
+  }
+
+  function initTableSessionGuard() {
+    const guard = tableSessionGuard();
+    if (!guard) return;
+
+    const run = () => disableOrderingBecauseSessionExpired();
+    run();
+
+    const expiresAt = parseServerDate(guard.dataset.expiresAt || '');
+    if (expiresAt) {
+      const delay = Math.max(0, expiresAt.getTime() - Date.now()) + 250;
+      window.setTimeout(run, delay);
+    }
+
+    document.addEventListener('visibilitychange', run);
+    window.addEventListener('pageshow', run);
+    window.addEventListener('focus', run);
+  }
 
 
 
@@ -146,6 +200,11 @@
       let isSaving = false;
 
       const persistQuantity = async () => {
+        if (disableOrderingBecauseSessionExpired()) {
+          setFeedback(feedback, tableSessionExpiredMessage(), 'error');
+          return;
+        }
+
         const quantity = Math.max(0, parseInt(input?.value || '0', 10) || 0);
         isSaving = true;
         card.dataset.cartSyncing = 'true';
@@ -182,6 +241,11 @@
       };
 
       const sync = (delta) => {
+        if (disableOrderingBecauseSessionExpired()) {
+          setFeedback(feedback, tableSessionExpiredMessage(), 'error');
+          return;
+        }
+
         const current = parseInt(input?.value || '0', 10) || 0;
         if (input) {
           input.value = String(Math.max(0, current + delta));
@@ -198,6 +262,13 @@
 
   function initCart() {
     const form = document.getElementById('finalize-order-form');
+
+    if (disableOrderingBecauseSessionExpired() && form) {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        alert(tableSessionExpiredMessage());
+      });
+    }
 
     document.querySelectorAll('[data-cart-item]').forEach((itemCard) => {
       const input = itemCard.querySelector('[data-cart-qty]');
@@ -274,6 +345,11 @@
       };
 
       const persistQuantity = async () => {
+        if (disableOrderingBecauseSessionExpired()) {
+          setFeedback(feedback, tableSessionExpiredMessage(), 'error');
+          return;
+        }
+
         const quantity = Math.max(0, parseInt(input?.value || '0', 10) || 0);
 
         if (updateButton) updateButton.disabled = true;
@@ -318,6 +394,11 @@
       };
 
       const sync = (delta) => {
+        if (disableOrderingBecauseSessionExpired()) {
+          setFeedback(feedback, tableSessionExpiredMessage(), 'error');
+          return;
+        }
+
         const current = parseInt(input?.value || '0', 10) || 0;
         if (input) {
           input.value = String(Math.max(0, current + delta));
@@ -640,7 +721,8 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     initPrivacyBanner();
-  initMenuGroups();
+    initTableSessionGuard();
+    initMenuGroups();
     initMenu();
     initCart();
     initTableEditor();
