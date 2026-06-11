@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS orders (
     payment_approved_at TEXT,
     payment_expires_at TEXT,
     payment_error TEXT NOT NULL DEFAULT '',
+    client_session_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK (status IN ('novo', 'preparando', 'pronto', 'entregue', 'cancelado')),
@@ -1081,6 +1082,7 @@ def _migrate_orders(db: sqlite3.Connection) -> None:
     _ensure_column(db, 'orders', 'payment_approved_at TEXT')
     _ensure_column(db, 'orders', 'payment_expires_at TEXT')
     _ensure_column(db, 'orders', "payment_error TEXT NOT NULL DEFAULT ''")
+    _ensure_column(db, 'orders', "client_session_id TEXT NOT NULL DEFAULT ''")
     _ensure_column(db, 'orders', 'updated_at TEXT')
 
     default_profile = db.execute(
@@ -1357,6 +1359,11 @@ def _create_indexes(db: sqlite3.Connection) -> None:
         if 'payment_external_id' in columns:
             db.execute(
                 'CREATE INDEX IF NOT EXISTS idx_orders_payment_external_id ON orders(payment_external_id)'
+            )
+
+        if {'restaurant_id', 'table_number', 'client_session_id'}.issubset(columns):
+            db.execute(
+                'CREATE INDEX IF NOT EXISTS idx_orders_restaurant_table_client_session ON orders(restaurant_id, table_number, client_session_id)'
             )
 
     if _table_exists(db, 'restaurant_payment_accounts'):
