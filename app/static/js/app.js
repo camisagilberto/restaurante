@@ -142,22 +142,8 @@
       const inc = card.querySelector('[data-qty-inc]');
       const feedback = card.querySelector('[data-feedback]');
       const productId = card.dataset.productId;
-      const basePrice = Number(card.dataset.basePrice || 0);
-      const priceNode = card.querySelector('[data-product-price]');
-      const addonInputs = Array.from(card.querySelectorAll('[data-addon-option]'));
       let updateTimer = null;
       let isSaving = false;
-
-      const selectedAddonIds = () => addonInputs.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
-
-      const selectedAddonTotal = () => addonInputs.reduce((total, checkbox) => {
-        return total + (checkbox.checked ? Number(checkbox.dataset.addonPrice || 0) : 0);
-      }, 0);
-
-      const updateDisplayedPrice = () => {
-        if (!priceNode || !basePrice) return;
-        priceNode.textContent = `R$ ${formatMoney(basePrice + selectedAddonTotal())}`;
-      };
 
       const persistQuantity = async () => {
         const quantity = Math.max(0, parseInt(input?.value || '0', 10) || 0);
@@ -169,7 +155,6 @@
           const { response, data } = await requestJSON('/carrinho/adicionar', {
             product_id: Number(productId),
             quantity,
-            addons: selectedAddonIds(),
             replace_product_variants: true,
           });
 
@@ -203,15 +188,6 @@
           schedulePersist();
         }
       };
-
-      addonInputs.forEach((checkbox) => {
-        checkbox.addEventListener('change', () => {
-          updateDisplayedPrice();
-          const quantity = Math.max(0, parseInt(input?.value || '0', 10) || 0);
-          if (quantity > 0) schedulePersist();
-        });
-      });
-      updateDisplayedPrice();
 
       dec?.addEventListener('click', () => sync(-1));
       inc?.addEventListener('click', () => sync(1));
