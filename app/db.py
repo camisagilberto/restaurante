@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS restaurant_profiles (
     FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS restaurant_table_qr_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    restaurant_id INTEGER NOT NULL,
+    table_number TEXT NOT NULL,
+    access_token TEXT NOT NULL UNIQUE,
+    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (restaurant_id, table_number),
+    FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     restaurant_id INTEGER,
@@ -101,7 +113,6 @@ CREATE TABLE IF NOT EXISTS orders (
     payment_approved_at TEXT,
     payment_expires_at TEXT,
     payment_error TEXT NOT NULL DEFAULT '',
-    client_session_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CHECK (status IN ('novo', 'preparando', 'pronto', 'entregue', 'cancelado')),
@@ -621,6 +632,30 @@ def _ensure_default_profile(db: sqlite3.Connection) -> int:
     return cursor.lastrowid
 
 
+def _ensure_restaurant_table_qr_tokens(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS restaurant_table_qr_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            restaurant_id INTEGER NOT NULL,
+            table_number TEXT NOT NULL,
+            access_token TEXT NOT NULL UNIQUE,
+            active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (restaurant_id, table_number),
+            FOREIGN KEY (restaurant_id) REFERENCES restaurant_profiles(id) ON DELETE CASCADE
+        )
+        """
+    )
+    db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_restaurant_table_qr_tokens_token ON restaurant_table_qr_tokens(access_token)'
+    )
+    db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_restaurant_table_qr_tokens_rest_table ON restaurant_table_qr_tokens(restaurant_id, table_number)'
+    )
+
+
 def _migrate_products(db: sqlite3.Connection) -> None:
     if not _table_exists(db, 'products'):
         return
@@ -1082,7 +1117,6 @@ def _migrate_orders(db: sqlite3.Connection) -> None:
     _ensure_column(db, 'orders', 'payment_approved_at TEXT')
     _ensure_column(db, 'orders', 'payment_expires_at TEXT')
     _ensure_column(db, 'orders', "payment_error TEXT NOT NULL DEFAULT ''")
-    _ensure_column(db, 'orders', "client_session_id TEXT NOT NULL DEFAULT ''")
     _ensure_column(db, 'orders', 'updated_at TEXT')
 
     default_profile = db.execute(
@@ -1361,11 +1395,6 @@ def _create_indexes(db: sqlite3.Connection) -> None:
                 'CREATE INDEX IF NOT EXISTS idx_orders_payment_external_id ON orders(payment_external_id)'
             )
 
-        if {'restaurant_id', 'table_number', 'client_session_id'}.issubset(columns):
-            db.execute(
-                'CREATE INDEX IF NOT EXISTS idx_orders_restaurant_table_client_session ON orders(restaurant_id, table_number, client_session_id)'
-            )
-
     if _table_exists(db, 'restaurant_payment_accounts'):
         columns = _table_info(db, 'restaurant_payment_accounts')
 
@@ -1441,6 +1470,7 @@ def _create_indexes(db: sqlite3.Connection) -> None:
 def migrate_schema(db: sqlite3.Connection) -> None:
     _migrate_admin_passwords(db)
     _migrate_restaurant_profiles(db)
+    _ensure_restaurant_table_qr_tokens(db)
     _migrate_products(db)
     _ensure_product_addons(db)
     _ensure_product_flavors(db)
