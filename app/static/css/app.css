@@ -3364,3 +3364,80 @@ summary:focus-visible {
   font-weight: 700;
   margin-bottom: 0.35rem;
 }
+
+/* Aviso de privacidade exibido no acesso por QR Code */
+.qr-privacy-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1200;
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -14px 40px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.qr-privacy-banner[hidden] {
+  display: none !important;
+}
+
+.qr-privacy-banner__content h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.qr-privacy-banner__content p {
+  margin: 0;
+  color: var(--muted, #64748b);
+  line-height: 1.45;
+}
+
+.qr-privacy-banner__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.qr-privacy-banner__links a {
+  color: var(--primary, #ff6b00);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.qr-privacy-banner__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.order-card--waiting-kitchen {
+  border: 2px solid rgba(249, 115, 22, 0.35);
+  box-shadow: 0 18px 45px rgba(249, 115, 22, 0.12);
+}
+
+.order-waiting-note {
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.18);
+  border-radius: 16px;
+  padding: 0.85rem;
+}
+
+.customer-name-field {
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 720px) {
+  .qr-privacy-banner {
+    left: 50%;
+    right: auto;
+    bottom: 1.5rem;
+    width: min(640px, calc(100% - 2rem));
+    transform: translateX(-50%);
+    border-radius: 28px;
+  }
+}
