@@ -73,7 +73,7 @@ CLIENT_RESTAURANT_SESSION_KEY = 'client_restaurant_id'
 CLIENT_RESTAURANT_TOKEN_SESSION_KEY = 'client_restaurant_token'
 PUBLIC_CLIENT_MODE_SESSION_KEY = 'public_client_mode'
 TABLE_QR_ACCESS_SESSION_KEY = 'table_qr_access'
-TABLE_QR_SESSION_MINUTES = 2
+TABLE_QR_SESSION_MINUTES = 1
 
 COUPON_CUSTOMER_RESTAURANT_SESSION_KEY = 'coupon_customer_restaurant_id'
 COUPON_CUSTOMER_ID_SESSION_KEY = 'coupon_customer_id'
@@ -209,6 +209,14 @@ def _table_session_remaining_minutes(restaurant_id: int | str | None = None, tab
         return 0
     remaining = expires_at - _utcnow()
     return max(0, int(remaining.total_seconds() // 60))
+
+
+def _table_session_expires_at(restaurant_id: int | str | None = None, table_number: int | str | None = None) -> str:
+    restaurant_id = restaurant_id or _client_restaurant_id()
+    table_number = str(table_number or _current_table())
+    payload = _table_session_payload(restaurant_id, table_number)
+    expires_at = _parse_iso_datetime(payload.get('expires_at'))
+    return _iso(expires_at) if expires_at else ''
 
 
 def _table_session_expired_response(*, status_code: int = 403):
@@ -718,6 +726,7 @@ def _render_client_menu(
         table_session_valid=table_session_valid,
         table_session_minutes=TABLE_QR_SESSION_MINUTES,
         table_session_remaining_minutes=_table_session_remaining_minutes(profile['id'], table_number) if table_session_valid else 0,
+        table_session_expires_at=_table_session_expires_at(profile['id'], table_number) if table_session_valid else '',
         service_mode=_service_mode_from_profile(profile),
         restaurant_is_active=restaurant_active,
         can_send_promotions=bool(session.get('admin_logged_in') and not _is_public_client_mode() and is_coupon_page and is_client_mirror),
@@ -2355,6 +2364,7 @@ def cart():
         flavor_options_by_product=flavor_options_by_product,
         table_number=table_number,
         order_payment_mode=_row_get(profile, 'order_payment_mode', 'pay_after'),
+        table_session_expires_at=_table_session_expires_at(restaurant_id, table_number),
         csrf=csrf_token(),
         menu_url=_public_menu_url(table_number),
         **fixed_actions_context,
