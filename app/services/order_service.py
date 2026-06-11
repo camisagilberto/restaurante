@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from ..errors import ValidationError
@@ -47,6 +47,38 @@ def _require_restaurant_id(restaurant_id: int | None) -> int:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec='microseconds')
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+
+    text = str(value)
+
+    for candidate in (text, text.replace(' ', 'T')):
+        try:
+            parsed = datetime.fromisoformat(candidate)
+
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+
+            return parsed.astimezone(timezone.utc)
+        except ValueError:
+            continue
+
+    return None
+
+
+def _is_visible_to_table(order, *, delivered_visibility_minutes: int = 20) -> bool:
+    if order['status'] != 'entregue':
+        return True
+
+    reference_time = _parse_datetime(_row_get(order, 'updated_at')) or _parse_datetime(_row_get(order, 'created_at'))
+
+    if not reference_time:
+        return False
+
+    return datetime.now(timezone.utc) - reference_time <= timedelta(minutes=delivered_visibility_minutes)
 
 
 def _format_created_at(value) -> str:
@@ -261,7 +293,9 @@ def list_orders_for_table(db, restaurant_id: int, table_number: str):
         (restaurant_id, str(table_number), *ACTIVE_ORDER_STATUSES),
     ).fetchall()
 
-    return [_decorate_order(db, order) for order in orders]
+    visible_orders = [order for order in orders if _is_visible_to_table(order)]
+
+    return [_decorate_order(db, order) for order in visible_orders]
 
 
 def list_orders_for_kitchen(db, restaurant_id: int):
